@@ -48,3 +48,6 @@ skills-lock.json
 
 # Senhas geradas pelo seed (nunca commitar)
 .credenciais*
+
+# Backups locais de dados (nunca commitar)
+/backups
