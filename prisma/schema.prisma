@@ -251,3 +251,12 @@ model ItemVenda {
   precoUnitario  Int
   total          Int
 }
+
+/// Falhas de login recentes, para limitar tentativas por e-mail e por IP
+model TentativaLogin {
+  id        String   @id @default(cuid())
+  chave     String   // "email:<e-mail>" ou "ip:<endereço>"
+  criadoEm  DateTime @default(now())
+
+  @@index([chave, criadoEm])
+}

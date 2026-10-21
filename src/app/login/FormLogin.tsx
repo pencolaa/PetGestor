@@ -18,11 +18,12 @@ function Form() {
     const res = await signIn("credentials", {
       email: form.get("email"),
       senha: form.get("senha"),
+      site: form.get("site"),
       redirect: false,
     });
     setCarregando(false);
     if (res?.error) {
-      setErro("E-mail ou senha inválidos.");
+      setErro(res.error === "BLOQUEADO" ? "Muitas tentativas. Aguarde 15 minutos e tente de novo." : "E-mail ou senha inválidos.");
       return;
     }
     // Só redireciona para dentro do próprio sistema
@@ -41,6 +42,8 @@ function Form() {
         <label className="label" htmlFor="senha">Senha</label>
         <input id="senha" name="senha" type="password" required autoComplete="current-password" className="input" />
       </div>
+      {/* Campo-isca contra robôs: invisível para pessoas */}
+      <input type="text" name="site" tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 opacity-0" />
       {erro && <p className="text-sm font-medium text-red-600">{erro}</p>}
       <button type="submit" className="btn-primary w-full" disabled={carregando}>
         {carregando ? "Entrando..." : "Entrar"}

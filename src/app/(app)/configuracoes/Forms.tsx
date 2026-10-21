@@ -53,7 +53,7 @@ export function FormUsuario() {
       <p className="font-semibold sm:col-span-2">Novo usuário</p>
       <input name="nome" placeholder="Nome" className="input" required />
       <input name="email" type="email" placeholder="E-mail" className="input" required />
-      <input name="senha" type="password" placeholder="Senha (mín. 6)" className="input" required minLength={6} autoComplete="new-password" />
+      <input name="senha" type="password" placeholder="Senha (mín. 8)" className="input" required minLength={8} autoComplete="new-password" />
       <select name="perfil" className="input">
         <option value="ATENDENTE">Atendente</option>
         <option value="ADMIN">Administrador</option>

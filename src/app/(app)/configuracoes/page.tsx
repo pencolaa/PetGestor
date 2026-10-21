@@ -8,7 +8,7 @@ import { alternarUsuario } from "./actions";
 export default async function ConfiguracoesPage() {
   const session = await exigirAdmin();
   const config = await obterConfiguracao();
-  const usuarios = await prisma.usuario.findMany({ orderBy: { nome: "asc" } });
+  const usuarios = await prisma.usuario.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true, email: true, perfil: true, ativo: true } });
 
   return (
     <>
@@ -16,7 +16,7 @@ export default async function ConfiguracoesPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card">
           <CardTitulo titulo="Pet shop" />
-          <FormConfiguracao config={config} />
+          <FormConfiguracao config={{ nomePetShop: config.nomePetShop, corPrincipal: config.corPrincipal, logoUrl: config.logoUrl, telefone: config.telefone, endereco: config.endereco }} />
         </section>
 
         <section className="card">

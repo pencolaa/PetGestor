@@ -47,7 +47,7 @@ export default async function TutorPage({ params }: { params: Promise<{ id: stri
           <MessageCircle size={16} /> WhatsApp
         </a>
         <Modal titulo="Editar tutor" gatilho={<><Pencil size={16} /> Editar</>} classeGatilho="btn-secondary">
-          <FormTutor tutor={tutor} />
+          <FormTutor tutor={{ id: tutor.id, nome: tutor.nome, telefone: tutor.telefone, email: tutor.email, cpf: tutor.cpf, endereco: tutor.endereco }} />
         </Modal>
         <Modal titulo="Novo pet" gatilho={<><Plus size={16} /> Novo pet</>}>
           <FormPet tutorId={tutor.id} />

@@ -52,7 +52,10 @@ export default async function PetPage({ params }: { params: Promise<{ id: string
           <MessageCircle size={16} /> WhatsApp
         </a>
         <Modal titulo="Editar pet" gatilho={<><Pencil size={16} /> Editar</>} classeGatilho="btn-secondary">
-          <FormPet tutorId={pet.tutorId} pet={{ ...pet, dataNascimento: pet.dataNascimento ? diaISO(pet.dataNascimento) : null }} />
+          <FormPet
+            tutorId={pet.tutorId}
+            pet={{ id: pet.id, nome: pet.nome, especie: pet.especie, raca: pet.raca, sexo: pet.sexo, peso: pet.peso, dataNascimento: pet.dataNascimento ? diaISO(pet.dataNascimento) : null }}
+          />
         </Modal>
         <Link href={`/agenda?novo=1&pet=${pet.id}`} className="btn-primary"><CalendarPlus size={16} /> Agendar</Link>
       </Cabecalho>
@@ -78,7 +81,7 @@ export default async function PetPage({ params }: { params: Promise<{ id: string
                 gatilho={pacote ? <><RefreshCw size={14} /> Renovar</> : <><Plus size={14} /> Novo</>}
                 classeGatilho="btn-secondary px-3 py-1.5 text-xs"
               >
-                <FormPacote petId={pet.id} servicos={servicosBanho} padrao={pacote ? { servicoId: pacote.servicoId, total: pacote.total, valor: pacote.valor } : undefined} />
+                <FormPacote petId={pet.id} servicos={servicosBanho.map((s) => ({ id: s.id, nome: s.nome, preco: s.preco }))} padrao={pacote ? { servicoId: pacote.servicoId, total: pacote.total, valor: pacote.valor } : undefined} />
               </Modal>
             </CardTitulo>
             {pacote ? (

@@ -38,5 +38,10 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.31"
+    }
   }
 }

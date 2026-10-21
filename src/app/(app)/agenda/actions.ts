@@ -4,8 +4,8 @@ import type { StatusAgendamento } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirSessao } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { texto, textoOuNull, type Resultado } from "@/lib/acoes";
-import { calcularHorariosLivres, FECHAMENTO, temConflito } from "@/lib/agenda";
+import { dataValida, texto, textoOuNull, type Resultado } from "@/lib/acoes";
+import { calcularHorariosLivres, FECHAMENTO, HORARIOS, temConflito } from "@/lib/agenda";
 import { dataHora, diaISO, formatarData, hojeISO, horaLocal } from "@/lib/datas";
 import { apenasDigitos, parseMoeda } from "@/lib/formato";
 import { obterConfiguracao } from "@/lib/configuracao";
@@ -23,7 +23,7 @@ export type PetBusca = {
 
 export async function buscarPets(q: string): Promise<PetBusca[]> {
   await exigirSessao();
-  const termo = q.trim();
+  const termo = String(q).trim().slice(0, 100);
   if (termo.length < 2) return [];
   const digitos = apenasDigitos(termo);
   const pets = await prisma.pet.findMany({
@@ -60,7 +60,7 @@ function paraPetBusca(p: {
 
 export async function horariosLivres(profissionalId: string, dia: string, duracaoMin: number): Promise<string[]> {
   await exigirSessao();
-  if (!profissionalId || !/^\d{4}-\d{2}-\d{2}$/.test(dia) || !(duracaoMin > 0)) return [];
+  if (typeof profissionalId !== "string" || !profissionalId || !dataValida(String(dia)) || !Number.isInteger(duracaoMin) || duracaoMin <= 0 || duracaoMin > 600) return [];
   return calcularHorariosLivres(profissionalId, dia, duracaoMin);
 }
 
@@ -68,24 +68,26 @@ export type ResultadoAgendamento = (Resultado & { whatsapp?: string }) | null;
 
 export async function criarAgendamento(_: ResultadoAgendamento, form: FormData): Promise<ResultadoAgendamento> {
   await exigirSessao();
-  const petId = texto(form, "petId");
-  const servicoId = texto(form, "servicoId");
-  const profissionalId = texto(form, "profissionalId");
-  const dia = texto(form, "data");
-  const hora = texto(form, "hora");
+  const petId = texto(form, "petId", 40);
+  const servicoId = texto(form, "servicoId", 40);
+  const profissionalId = texto(form, "profissionalId", 40);
+  const dia = texto(form, "data", 10);
+  const hora = texto(form, "hora", 5);
   const usarPacote = form.get("usarPacote") === "on";
   const confirmarWhatsapp = form.get("confirmarWhatsapp") === "on";
 
   if (!petId) return { ok: false, mensagem: "Selecione o pet." };
   if (!servicoId || !profissionalId) return { ok: false, mensagem: "Selecione o serviço e o profissional." };
   if (!dia || !hora) return { ok: false, mensagem: "Escolha a data e o horário." };
+  // Só datas reais e horários da grade (blocos de 30 min dentro do expediente)
+  if (!dataValida(dia) || !HORARIOS.includes(hora)) return { ok: false, mensagem: "Data ou horário inválido." };
 
   const [pet, servico, profissional] = await Promise.all([
     prisma.pet.findUnique({ where: { id: petId }, include: { tutor: true } }),
     prisma.servico.findUnique({ where: { id: servicoId } }),
     prisma.profissional.findUnique({ where: { id: profissionalId } }),
   ]);
-  if (!pet || !servico || !profissional) return { ok: false, mensagem: "Dados inválidos." };
+  if (!pet || !servico?.ativo || !profissional?.ativo) return { ok: false, mensagem: "Pet, serviço ou profissional inválido." };
   if (profissional.tipo !== servico.tipo && !(servico.tipo === "BANHO" && profissional.tipo === "TOSA")) {
     return { ok: false, mensagem: `${profissional.nome} não realiza esse tipo de serviço.` };
   }
@@ -93,7 +95,9 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
   const inicio = dataHora(dia, hora);
   const fim = new Date(inicio.getTime() + servico.duracaoMin * 60000);
   if (fim > dataHora(dia, FECHAMENTO)) return { ok: false, mensagem: `O serviço terminaria após o fechamento (${FECHAMENTO}).` };
-  if (dia < hojeISO()) return { ok: false, mensagem: "Não é possível agendar em data passada." };
+  if (dia < hojeISO() || inicio < new Date()) return { ok: false, mensagem: "Não é possível agendar em horário que já passou." };
+  const valorInformado = parseMoeda(texto(form, "valorEstimado", 15));
+  if (valorInformado < 0 || valorInformado > 10_000_000) return { ok: false, mensagem: "Valor estimado inválido." };
 
   let pacoteId: string | null = null;
   if (usarPacote) {
@@ -114,13 +118,18 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
         include: { pet: true },
       });
       if (conflito) throw new Error(`CONFLITO:${horaLocal(conflito.inicio)}–${horaLocal(conflito.fim)} (${conflito.pet.nome})`);
-      if (pacoteId) await tx.pacote.update({ where: { id: pacoteId }, data: { usados: { increment: 1 } } });
+      if (pacoteId) {
+        // Só consome se ainda houver banho disponível (evita usar o último banho duas vezes ao mesmo tempo)
+        const pacote = await tx.pacote.findUniqueOrThrow({ where: { id: pacoteId } });
+        const r = await tx.pacote.updateMany({ where: { id: pacoteId, usados: { lt: pacote.total } }, data: { usados: { increment: 1 } } });
+        if (r.count === 0) throw new Error("PACOTE_ESGOTADO");
+      }
       await tx.agendamento.create({
         data: {
           petId, servicoId, profissionalId, inicio, fim,
           status: "AGUARDANDO",
-          valorEstimado: pacoteId ? 0 : parseMoeda(texto(form, "valorEstimado")) || servico.preco,
-          observacoes: textoOuNull(form, "observacoes"),
+          valorEstimado: pacoteId ? 0 : valorInformado || servico.preco,
+          observacoes: textoOuNull(form, "observacoes", 500),
           confirmarWhatsapp,
           pacoteId,
           pago: pacoteId !== null,
@@ -128,6 +137,7 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
       });
     });
   } catch (e) {
+    if (e instanceof Error && e.message === "PACOTE_ESGOTADO") return { ok: false, mensagem: "O pacote deste pet acabou de ser esgotado." };
     if (e instanceof Error && e.message.startsWith("CONFLITO:")) {
       return { ok: false, mensagem: `${profissional.nome} já tem atendimento em ${e.message.slice(9)}. Escolha outro horário.` };
     }
