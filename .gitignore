@@ -45,3 +45,6 @@ next-env.d.ts
 /.agents
 /.claude
 skills-lock.json
+
+# Senhas geradas pelo seed (nunca commitar)
+.credenciais*

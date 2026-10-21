@@ -1,5 +1,7 @@
 import { PrismaClient, type Especie, type Sexo, type StatusAgendamento } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import { dataHora, hojeISO, somarDias } from "../src/lib/datas";
 
 const prisma = new PrismaClient();
@@ -9,6 +11,9 @@ let semente = 42;
 function rand() {
   semente = (semente * 1664525 + 1013904223) % 4294967296;
   return semente / 4294967296;
+}
+function senhaAleatoria() {
+  return randomBytes(12).toString("base64url");
 }
 function escolher<T>(lista: T[]): T {
   return lista[Math.floor(rand() * lista.length)];
@@ -46,12 +51,25 @@ async function main() {
     },
   });
 
+  // Senhas nunca ficam no código: vêm do .env (SEED_SENHA_ADMIN / SEED_SENHA_ATENDENTE)
+  // ou são geradas na hora e gravadas em .credenciais.local, que o Git ignora.
+  const senhaAdmin = process.env.SEED_SENHA_ADMIN || senhaAleatoria();
+  const senhaAtendente = process.env.SEED_SENHA_ATENDENTE || senhaAleatoria();
   await prisma.usuario.create({
-    data: { nome: "Mariana Souza", email: "admin@petshop.com", senhaHash: await bcrypt.hash("admin123", 10), perfil: "ADMIN" },
+    data: { nome: "Mariana Souza", email: "admin@petshop.com", senhaHash: await bcrypt.hash(senhaAdmin, 10), perfil: "ADMIN" },
   });
   await prisma.usuario.create({
-    data: { nome: "Lucas Lima", email: "atendente@petshop.com", senhaHash: await bcrypt.hash("atendente123", 10), perfil: "ATENDENTE" },
+    data: { nome: "Lucas Lima", email: "atendente@petshop.com", senhaHash: await bcrypt.hash(senhaAtendente, 10), perfil: "ATENDENTE" },
   });
+  const geradas = !process.env.SEED_SENHA_ADMIN || !process.env.SEED_SENHA_ATENDENTE;
+  if (geradas) {
+    const linhas = [
+      `# Gerado pelo seed em ${new Date().toISOString()} — NÃO commitar`,
+      `admin@petshop.com ${senhaAdmin}`,
+      `atendente@petshop.com ${senhaAtendente}`,
+    ];
+    writeFileSync(".credenciais.local", linhas.join("\n") + "\n");
+  }
 
   const [ana, bruno, carla, rafael] = await Promise.all([
     prisma.profissional.create({ data: { nome: "Ana", tipo: "BANHO" } }),
@@ -229,7 +247,11 @@ async function main() {
   }
 
   console.log(`Seed concluído: ${tutores.length} tutores e ${pets.length} pets.`);
-  console.log("Login admin: admin@petshop.com / admin123 — atendente: atendente@petshop.com / atendente123");
+  console.log(
+    geradas
+      ? "Usuários admin@petshop.com e atendente@petshop.com criados; senhas geradas em .credenciais.local"
+      : "Usuários admin@petshop.com e atendente@petshop.com criados com as senhas do .env",
+  );
 }
 
 main()

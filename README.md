@@ -17,12 +17,10 @@ npm run db:seed               # dados de demonstração
 npm run dev                   # http://localhost:3300
 ```
 
-Logins de demonstração (criados pelo seed):
-
-| Perfil    | E-mail                 | Senha        |
-|-----------|------------------------|--------------|
-| Admin     | admin@petshop.com      | admin123     |
-| Atendente | atendente@petshop.com  | atendente123 |
+O seed cria dois usuários: `admin@petshop.com` (administrador) e `atendente@petshop.com`.
+**As senhas nunca ficam no repositório:** defina `SEED_SENHA_ADMIN` e `SEED_SENHA_ATENDENTE`
+no `.env`, ou deixe em branco para o seed gerar senhas aleatórias e gravá-las em
+`.credenciais.local` (arquivo ignorado pelo Git).
 
 O seed gera os dados **relativos à data de hoje** (agenda do dia e dos próximos dias,
 vacinas vencendo), então a demonstração sempre parece "viva". Rodar o seed de novo
