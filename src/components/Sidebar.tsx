@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { CalendarDays, LogOut, PawPrint, Settings } from "lucide-react";
+import { CalendarDays, LogOut, PawPrint, Settings, UserRound } from "lucide-react";
 
 const ITENS = [
   { href: "/agenda", rotulo: "Agenda", icone: CalendarDays },
@@ -18,7 +18,8 @@ type Props = {
 
 export function Sidebar({ nomePetShop, logoUrl, usuario }: Props) {
   const pathname = usePathname();
-  const itens = usuario.perfil === "ADMIN" ? [...ITENS, { href: "/configuracoes", rotulo: "Configurações", icone: Settings }] : ITENS;
+  const conta = { href: "/conta", rotulo: "Minha conta", icone: UserRound };
+  const itens = usuario.perfil === "ADMIN" ? [...ITENS, { href: "/configuracoes", rotulo: "Configurações", icone: Settings }, conta] : [...ITENS, conta];
   const ativo = (href: string) => pathname.startsWith(href);
 
   return (
@@ -56,7 +57,7 @@ export function Sidebar({ nomePetShop, logoUrl, usuario }: Props) {
       </nav>
 
       <div className="hidden border-t border-white/10 p-4 md:block">
-        <p className="truncate text-sm font-semibold">{usuario.nome}</p>
+        <Link href="/conta" className="block truncate text-sm font-semibold hover:underline">{usuario.nome}</Link>
         <p className="text-xs text-white/60">{usuario.perfil === "ADMIN" ? "Administrador" : "Atendente"}</p>
         <button onClick={() => signOut({ callbackUrl: "/login" })} className="mt-3 flex items-center gap-2 text-xs text-white/70 hover:text-white">
           <LogOut size={14} /> Sair

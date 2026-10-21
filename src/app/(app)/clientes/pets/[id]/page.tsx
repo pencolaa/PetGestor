@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarPlus, MessageCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { exigirSessao } from "@/lib/auth";
+import { BotaoExcluir } from "@/components/BotaoExcluir";
 import { diaISO, formatarData, hojeISO, horaLocal, idade } from "@/lib/datas";
 import { formatarMoeda, formatarTelefone, ROTULO_ESPECIE, ROTULO_SEXO } from "@/lib/formato";
 import { ROTULO_SITUACAO, situacaoVacina } from "@/lib/vacinas";
@@ -9,10 +11,11 @@ import { linkWaMe } from "@/lib/whatsapp";
 import { Cabecalho, CardTitulo, Pill, StatusPill, Vazio } from "@/components/ui";
 import { Modal } from "@/components/Modal";
 import { FormObservacoes, FormPacote, FormPet, FormVacina } from "../../Forms";
-import { excluirVacina } from "../../actions";
+import { excluirPet, excluirVacina } from "../../actions";
 
 export default async function PetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await exigirSessao();
   const hoje = hojeISO();
   const [pet, servicosBanho] = await Promise.all([
     prisma.pet.findUnique({
@@ -57,6 +60,12 @@ export default async function PetPage({ params }: { params: Promise<{ id: string
             pet={{ id: pet.id, nome: pet.nome, especie: pet.especie, raca: pet.raca, sexo: pet.sexo, peso: pet.peso, dataNascimento: pet.dataNascimento ? diaISO(pet.dataNascimento) : null }}
           />
         </Modal>
+        {session.user.perfil === "ADMIN" && (
+          <BotaoExcluir
+            acao={excluirPet.bind(null, pet.id)}
+            confirmacao={`Excluir ${pet.nome}, com vacinas, pacotes e histórico de atendimentos? Isso não pode ser desfeito.`}
+          />
+        )}
         <Link href={`/agenda?novo=1&pet=${pet.id}`} className="btn-primary"><CalendarPlus size={16} /> Agendar</Link>
       </Cabecalho>
 

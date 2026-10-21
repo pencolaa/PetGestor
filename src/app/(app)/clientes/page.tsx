@@ -7,6 +7,8 @@ import { Cabecalho, Vazio } from "@/components/ui";
 import { Modal } from "@/components/Modal";
 import { FormTutor } from "./Forms";
 
+export const metadata = { title: "Clientes e pets" };
+
 export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const q = (await searchParams).q?.trim() ?? "";
   const digitos = apenasDigitos(q);

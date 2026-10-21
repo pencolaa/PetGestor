@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { exigirSessao } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dataValida, texto, textoOuNull, type Resultado } from "@/lib/acoes";
-import { calcularHorariosLivres, FECHAMENTO, HORARIOS, temConflito } from "@/lib/agenda";
+import { calcularHorariosLivres, obterExpediente, temConflito } from "@/lib/agenda";
 import { dataHora, diaISO, formatarData, hojeISO, horaLocal } from "@/lib/datas";
 import { apenasDigitos, parseMoeda } from "@/lib/formato";
 import { obterConfiguracao } from "@/lib/configuracao";
@@ -58,10 +58,10 @@ function paraPetBusca(p: {
   };
 }
 
-export async function horariosLivres(profissionalId: string, dia: string, duracaoMin: number): Promise<string[]> {
+export async function horariosLivres(profissionalId: string, dia: string, duracaoMin: number, ignorarId?: string): Promise<string[]> {
   await exigirSessao();
   if (typeof profissionalId !== "string" || !profissionalId || !dataValida(String(dia)) || !Number.isInteger(duracaoMin) || duracaoMin <= 0 || duracaoMin > 600) return [];
-  return calcularHorariosLivres(profissionalId, dia, duracaoMin);
+  return calcularHorariosLivres(profissionalId, dia, duracaoMin, typeof ignorarId === "string" ? ignorarId.slice(0, 40) : undefined);
 }
 
 export type ResultadoAgendamento = (Resultado & { whatsapp?: string }) | null;
@@ -80,7 +80,8 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
   if (!servicoId || !profissionalId) return { ok: false, mensagem: "Selecione o serviço e o profissional." };
   if (!dia || !hora) return { ok: false, mensagem: "Escolha a data e o horário." };
   // Só datas reais e horários da grade (blocos de 30 min dentro do expediente)
-  if (!dataValida(dia) || !HORARIOS.includes(hora)) return { ok: false, mensagem: "Data ou horário inválido." };
+  const expediente = await obterExpediente();
+  if (!dataValida(dia) || !expediente.horarios.includes(hora)) return { ok: false, mensagem: "Data ou horário inválido." };
 
   const [pet, servico, profissional] = await Promise.all([
     prisma.pet.findUnique({ where: { id: petId }, include: { tutor: true } }),
@@ -88,13 +89,13 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
     prisma.profissional.findUnique({ where: { id: profissionalId } }),
   ]);
   if (!pet || !servico?.ativo || !profissional?.ativo) return { ok: false, mensagem: "Pet, serviço ou profissional inválido." };
-  if (profissional.tipo !== servico.tipo && !(servico.tipo === "BANHO" && profissional.tipo === "TOSA")) {
+  if (!atende(profissional.tipo, servico.tipo)) {
     return { ok: false, mensagem: `${profissional.nome} não realiza esse tipo de serviço.` };
   }
 
   const inicio = dataHora(dia, hora);
   const fim = new Date(inicio.getTime() + servico.duracaoMin * 60000);
-  if (fim > dataHora(dia, FECHAMENTO)) return { ok: false, mensagem: `O serviço terminaria após o fechamento (${FECHAMENTO}).` };
+  if (fim > dataHora(dia, expediente.fechamento)) return { ok: false, mensagem: `O serviço terminaria após o fechamento (${expediente.fechamento}).` };
   if (dia < hojeISO() || inicio < new Date()) return { ok: false, mensagem: "Não é possível agendar em horário que já passou." };
   const valorInformado = parseMoeda(texto(form, "valorEstimado", 15));
   if (valorInformado < 0 || valorInformado > 10_000_000) return { ok: false, mensagem: "Valor estimado inválido." };
@@ -160,6 +161,57 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
     if (envio.modo === "link") whatsapp = envio.url;
   }
   return { ok: true, mensagem: "Agendamento criado.", whatsapp };
+}
+
+/** Profissional pode atender o serviço? (tosadores também dão banho) */
+function atende(tipoProfissional: string, tipoServico: string) {
+  return tipoProfissional === tipoServico || (tipoServico === "BANHO" && tipoProfissional === "TOSA");
+}
+
+export async function remarcarAgendamento(_: Resultado, form: FormData): Promise<Resultado> {
+  await exigirSessao();
+  const id = texto(form, "id", 40);
+  const profissionalId = texto(form, "profissionalId", 40);
+  const dia = texto(form, "data", 10);
+  const hora = texto(form, "hora", 5);
+
+  const atual = await prisma.agendamento.findUnique({ where: { id }, include: { servico: true } });
+  if (!atual) return { ok: false, mensagem: "Agendamento não encontrado." };
+  if (atual.status === "CANCELADO" || atual.status === "CONCLUIDO") return { ok: false, mensagem: "Agendamentos cancelados ou concluídos não podem ser remarcados." };
+
+  const expediente = await obterExpediente();
+  if (!dataValida(dia) || !expediente.horarios.includes(hora)) return { ok: false, mensagem: "Escolha uma data e um horário válidos." };
+  const profissional = await prisma.profissional.findUnique({ where: { id: profissionalId } });
+  if (!profissional?.ativo) return { ok: false, mensagem: "Profissional inválido." };
+  if (!atende(profissional.tipo, atual.servico.tipo)) return { ok: false, mensagem: `${profissional.nome} não realiza esse tipo de serviço.` };
+
+  const inicio = dataHora(dia, hora);
+  const fim = new Date(inicio.getTime() + atual.servico.duracaoMin * 60000);
+  if (inicio < new Date()) return { ok: false, mensagem: "Não é possível remarcar para um horário que já passou." };
+  if (fim > dataHora(dia, expediente.fechamento)) return { ok: false, mensagem: `O serviço terminaria após o fechamento (${expediente.fechamento}).` };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${profissionalId}))`;
+      const conflito = await tx.agendamento.findFirst({
+        where: { id: { not: id }, profissionalId, status: { not: "CANCELADO" }, inicio: { lt: fim }, fim: { gt: inicio } },
+        include: { pet: true },
+      });
+      if (conflito) throw new Error(`CONFLITO:${horaLocal(conflito.inicio)}–${horaLocal(conflito.fim)} (${conflito.pet.nome})`);
+      await tx.agendamento.update({
+        where: { id },
+        data: { profissionalId, inicio, fim, observacoes: textoOuNull(form, "observacoes", 500) },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("CONFLITO:")) {
+      return { ok: false, mensagem: `${profissional.nome} já tem atendimento em ${e.message.slice(9)}.` };
+    }
+    throw e;
+  }
+  revalidatePath("/agenda");
+  revalidatePath("/clientes");
+  return { ok: true, mensagem: "Agendamento remarcado." };
 }
 
 const STATUS_VALIDOS: StatusAgendamento[] = ["AGUARDANDO", "CONFIRMADO", "EM_ATENDIMENTO", "PRONTO", "CONCLUIDO", "CANCELADO"];

@@ -40,7 +40,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
         await limparFalhas(email);
-        return { id: usuario.id, name: usuario.nome, email: usuario.email, perfil: usuario.perfil };
+        return { id: usuario.id, name: usuario.nome, email: usuario.email, perfil: usuario.perfil, sessaoVersao: usuario.sessaoVersao };
       },
     }),
   ],
@@ -49,12 +49,14 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.perfil = user.perfil;
+        token.sessaoVersao = user.sessaoVersao;
       }
       return token;
     },
     async session({ session, token }) {
       session.user.id = token.id;
       session.user.perfil = token.perfil;
+      session.user.sessaoVersao = token.sessaoVersao ?? 0;
       return session;
     },
   },
@@ -63,9 +65,9 @@ export const authOptions: NextAuthOptions = {
 export const exigirSessao = cache(async () => {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
-  // O JWT pode sobreviver ao usuário: confere se ainda existe e está ativo, e usa o perfil atual
-  const usuario = await prisma.usuario.findUnique({ where: { id: session.user.id }, select: { ativo: true, perfil: true, nome: true } });
-  if (!usuario?.ativo) redirect("/sair");
+  // O JWT pode sobreviver ao usuário: confere se ainda existe, está ativo e se a senha não mudou desde o login
+  const usuario = await prisma.usuario.findUnique({ where: { id: session.user.id }, select: { ativo: true, perfil: true, nome: true, sessaoVersao: true } });
+  if (!usuario?.ativo || usuario.sessaoVersao !== session.user.sessaoVersao) redirect("/sair");
   session.user.perfil = usuario.perfil;
   session.user.name = usuario.nome;
   return session;

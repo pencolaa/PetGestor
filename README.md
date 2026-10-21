@@ -26,9 +26,18 @@ O seed gera os dados **relativos à data de hoje** (agenda do dia e dos próximo
 vacinas vencendo), então a demonstração sempre parece "viva". Rodar o seed de novo
 apaga e recria tudo — e invalida sessões abertas (é só entrar de novo).
 
+## Primeiro uso (pet shop novo)
+
+1. Entre com o usuário administrador.
+2. Em **Configurações**: nome, logo, cor, horário de funcionamento, **serviços** (duração e
+   preço) e **profissionais** (cada um vira uma coluna na agenda).
+3. Ainda em Configurações, crie os usuários da equipe. Quem esquecer a senha recebe uma
+   senha provisória pelo botão "Nova senha"; cada um troca a sua em **Minha conta**.
+
 ## Perfis
 
-- **Admin:** tudo, mais Configurações (nome, cor principal, logo, usuários).
+- **Admin:** tudo, mais Configurações (pet shop, horário, serviços, profissionais, usuários)
+  e exclusão de tutores e pets.
 - **Atendente:** agenda e clientes e pets.
 
 ## Organização
@@ -56,4 +65,5 @@ implemente `ProvedorWhatsApp` com `modo: "api"` e troque o retorno de `provedorW
 - **Pacotes:** agendar com pacote consome um banho; cancelar devolve.
 - As tabelas de produtos, estoque e vendas continuam no banco (sem uso pelas telas), para
   não perder dados; podem ser removidas numa migração futura.
-- Horário de funcionamento (08:00–18:00, blocos de 30 min) em `src/lib/agenda.ts`.
+- Horário de funcionamento configurável em Configurações (blocos de 30 min).
+- Agendamentos podem ser remarcados (data, horário, profissional) com a mesma checagem de conflito.

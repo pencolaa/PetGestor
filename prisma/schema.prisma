@@ -69,6 +69,8 @@ model Configuracao {
   logoUrl       String?
   telefone      String?
   endereco      String?
+  abertura      String   @default("08:00") // horário de funcionamento da agenda (HH:MM)
+  fechamento    String   @default("18:00")
   atualizadoEm  DateTime @updatedAt
 }
 
@@ -79,6 +81,7 @@ model Usuario {
   senhaHash   String
   perfil      Perfil   @default(ATENDENTE)
   ativo       Boolean  @default(true)
+  sessaoVersao Int     @default(0) // incrementa ao trocar a senha, derrubando sessões antigas
   criadoEm    DateTime @default(now())
   vendas      Venda[]
   movimentacoes MovimentacaoEstoque[]

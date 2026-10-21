@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import type { StatusAgendamento } from "@prisma/client";
-import { MessageCircle } from "lucide-react";
+import { CalendarClock, MessageCircle } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { StatusPill } from "@/components/ui";
 import { formatarMoeda, formatarTelefone, ROTULO_STATUS } from "@/lib/formato";
-import { alterarStatus, linkAvisoAgendamento } from "./actions";
+import { Mensagem } from "@/components/Mensagem";
+import { alterarStatus, horariosLivres, linkAvisoAgendamento, remarcarAgendamento } from "./actions";
 
 export type AgendamentoBloco = {
   id: string;
@@ -25,7 +26,14 @@ export type AgendamentoBloco = {
   valor: number;
   pacote: boolean;
   observacoes: string | null;
+  dia: string;
+  duracaoMin: number;
+  tipoServico: string;
 };
+
+export type ProfissionalAgenda = { id: string; nome: string; tipo: string };
+
+type PropsAg = { ag: AgendamentoBloco; profissionais: ProfissionalAgenda[]; hoje: string };
 
 const BORDA: Record<StatusAgendamento, string> = {
   CONFIRMADO: "border-l-blue-500 bg-blue-50/70",
@@ -42,7 +50,7 @@ function emoji(especie: string) {
   return especie === "GATO" ? "🐱" : especie === "CAO" ? "🐶" : "🐾";
 }
 
-export function BlocoAgendamento({ ag, compacto = false }: { ag: AgendamentoBloco; compacto?: boolean }) {
+export function BlocoAgendamento({ ag, profissionais, hoje, compacto = false }: PropsAg & { compacto?: boolean }) {
   return (
     <Modal
       titulo={`${emoji(ag.especie)} ${ag.pet} — ${ag.servico}`}
@@ -65,13 +73,13 @@ export function BlocoAgendamento({ ag, compacto = false }: { ag: AgendamentoBloc
         )
       }
     >
-      <Detalhes ag={ag} />
+      <Detalhes ag={ag} profissionais={profissionais} hoje={hoje} />
     </Modal>
   );
 }
 
 /** Linha da visão "Lista": horário, pet, tutor, serviço, profissional e status */
-export function LinhaAgendamento({ ag }: { ag: AgendamentoBloco }) {
+export function LinhaAgendamento({ ag, profissionais, hoje }: PropsAg) {
   return (
     <Modal
       titulo={`${emoji(ag.especie)} ${ag.pet} — ${ag.servico}`}
@@ -89,14 +97,16 @@ export function LinhaAgendamento({ ag }: { ag: AgendamentoBloco }) {
         </>
       }
     >
-      <Detalhes ag={ag} />
+      <Detalhes ag={ag} profissionais={profissionais} hoje={hoje} />
     </Modal>
   );
 }
 
-function Detalhes({ ag }: { ag: AgendamentoBloco }) {
+function Detalhes({ ag, profissionais, hoje }: PropsAg) {
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState("");
+  const [remarcando, setRemarcando] = useState(false);
+  const podeRemarcar = ag.status !== "CANCELADO" && ag.status !== "CONCLUIDO";
 
   function mudar(status: StatusAgendamento) {
     setErro("");
@@ -156,15 +166,105 @@ function Detalhes({ ag }: { ag: AgendamentoBloco }) {
         {erro && <p className="mt-2 text-sm font-medium text-red-600">{erro}</p>}
       </div>
 
+      {remarcando && <FormRemarcar ag={ag} profissionais={profissionais} hoje={hoje} aoConcluir={() => setRemarcando(false)} />}
+
       <div className="flex flex-wrap gap-2 border-t border-borda pt-4">
+        {podeRemarcar && !remarcando && (
+          <button onClick={() => setRemarcando(true)} className="btn-secondary px-3 py-1.5 text-xs"><CalendarClock size={14} /> Remarcar</button>
+        )}
         <button onClick={() => avisar("confirmacao")} className="btn-whatsapp"><MessageCircle size={14} /> Confirmar</button>
         <button onClick={() => avisar("pronto")} className="btn-whatsapp"><MessageCircle size={14} /> Avisar pronto</button>
         {ag.status === "CANCELADO" ? (
           <button onClick={() => mudar("AGUARDANDO")} disabled={pendente} className="btn-ghost ml-auto px-3 py-1.5 text-xs">Reativar</button>
         ) : (
-          <button onClick={() => mudar("CANCELADO")} disabled={pendente} className="btn-ghost ml-auto px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700">Cancelar agendamento</button>
+          <button onClick={() => confirm(`Cancelar o agendamento de ${ag.pet} às ${ag.inicio}?`) && mudar("CANCELADO")} disabled={pendente} className="btn-ghost ml-auto px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700">Cancelar agendamento</button>
         )}
       </div>
     </div>
+  );
+}
+
+/** Profissional pode atender o serviço? (tosadores também dão banho) */
+function atende(tipoProfissional: string, tipoServico: string) {
+  return tipoProfissional === tipoServico || (tipoServico === "BANHO" && tipoProfissional === "TOSA");
+}
+
+function FormRemarcar({ ag, profissionais, hoje, aoConcluir }: PropsAg & { aoConcluir: () => void }) {
+  const [estado, acao, enviando] = useActionState(remarcarAgendamento, null);
+  const aptos = profissionais.filter((p) => atende(p.tipo, ag.tipoServico));
+  const [data, setData] = useState(ag.dia < hoje ? hoje : ag.dia);
+  const [profissionalId, setProfissionalId] = useState(aptos.some((p) => p.id === ag.profissionalId) ? ag.profissionalId : aptos[0]?.id ?? "");
+  const [horarios, setHorarios] = useState<string[] | null>(null);
+  const [hora, setHora] = useState("");
+
+  // Horários livres do profissional na data, ignorando o próprio agendamento
+  useEffect(() => {
+    let ativo = true;
+    setHorarios(null);
+    horariosLivres(profissionalId, data, ag.duracaoMin, ag.id).then((h) => {
+      if (!ativo) return;
+      setHorarios(h);
+      setHora((atual) => (h.includes(atual) ? atual : h.includes(ag.inicio) && data === ag.dia ? ag.inicio : h[0] ?? ""));
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [profissionalId, data, ag.duracaoMin, ag.id, ag.inicio, ag.dia]);
+
+  useEffect(() => {
+    if (estado?.ok) aoConcluir();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado]);
+
+  return (
+    <form action={acao} className="space-y-3 rounded-xl border border-borda bg-fundo p-4">
+      <p className="text-sm font-semibold">Remarcar</p>
+      <input type="hidden" name="id" value={ag.id} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label">Data</label>
+          <input type="date" name="data" value={data} min={hoje} onChange={(e) => setData(e.target.value)} className="input" required />
+        </div>
+        <div>
+          <label className="label">Profissional</label>
+          <select name="profissionalId" value={profissionalId} onChange={(e) => setProfissionalId(e.target.value)} className="input">
+            {aptos.map((p) => (
+              <option key={p.id} value={p.id}>{p.nome}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="label">Horário livre</label>
+        {horarios === null ? (
+          <p className="text-sm text-suave">Carregando horários...</p>
+        ) : horarios.length === 0 ? (
+          <p className="text-sm text-orange-700">Sem horários livres nesta data.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {horarios.map((h) => (
+              <button
+                type="button"
+                key={h}
+                onClick={() => setHora(h)}
+                className={`rounded-lg border px-2.5 py-1 text-sm font-medium ${hora === h ? "border-primary bg-primary text-white" : "border-borda bg-white hover:border-primary"}`}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
+        )}
+        <input type="hidden" name="hora" value={hora} />
+      </div>
+      <div>
+        <label className="label">Observações</label>
+        <textarea name="observacoes" rows={2} defaultValue={ag.observacoes ?? ""} maxLength={500} className="input" />
+      </div>
+      <div className="flex items-center gap-2">
+        <button className="btn-primary px-3 py-1.5 text-xs" disabled={enviando || !hora}>{enviando ? "Salvando..." : "Salvar nova data"}</button>
+        <button type="button" onClick={aoConcluir} className="btn-ghost px-3 py-1.5 text-xs">Voltar</button>
+        <Mensagem r={estado?.ok ? null : estado} />
+      </div>
+    </form>
   );
 }

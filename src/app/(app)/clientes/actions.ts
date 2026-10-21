@@ -2,7 +2,8 @@
 
 import type { Especie, Sexo } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { exigirSessao } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { exigirAdmin, exigirSessao } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dataValida, emailValido, inteiro, texto, textoOuNull, type Resultado } from "@/lib/acoes";
 import { dataHora, hojeISO, somarDias } from "@/lib/datas";
@@ -125,4 +126,26 @@ export async function criarPacote(_: Resultado, form: FormData): Promise<Resulta
   });
   revalidatePath(`/clientes/pets/${petId}`);
   return { ok: true, mensagem: "Pacote registrado." };
+}
+
+/** Exclui o pet com vacinas, pacotes e histórico de agendamentos (somente administrador) */
+export async function excluirPet(id: string): Promise<Resultado> {
+  await exigirAdmin();
+  const pet = await prisma.pet.findUnique({ where: { id: String(id).slice(0, 40) }, select: { id: true, tutorId: true } });
+  if (!pet) return { ok: false, mensagem: "Pet não encontrado." };
+  await prisma.pet.delete({ where: { id: pet.id } });
+  revalidatePath("/clientes");
+  revalidatePath("/agenda");
+  redirect(`/clientes/${pet.tutorId}`);
+}
+
+/** Exclui o tutor e todos os pets dele (somente administrador) */
+export async function excluirTutor(id: string): Promise<Resultado> {
+  await exigirAdmin();
+  const tutor = await prisma.tutor.findUnique({ where: { id: String(id).slice(0, 40) }, select: { id: true } });
+  if (!tutor) return { ok: false, mensagem: "Tutor não encontrado." };
+  await prisma.tutor.delete({ where: { id: tutor.id } });
+  revalidatePath("/clientes");
+  revalidatePath("/agenda");
+  redirect("/clientes");
 }

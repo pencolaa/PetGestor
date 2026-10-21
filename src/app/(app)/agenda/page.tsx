@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { HORARIOS, OCUPA_AGENDA } from "@/lib/agenda";
+import { obterExpediente, OCUPA_AGENDA } from "@/lib/agenda";
 import { diaISO, diaDaSemana, fimDoDia, formatarData, hojeISO, horaLocal, inicioDaSemana, inicioDoDia, somarDias } from "@/lib/datas";
 import { ROTULO_TIPO_SERVICO } from "@/lib/formato";
 import { Cabecalho, Vazio } from "@/components/ui";
-import { BlocoAgendamento, LinhaAgendamento, type AgendamentoBloco } from "./BlocoAgendamento";
+import { exigirSessao } from "@/lib/auth";
+import { BlocoAgendamento, LinhaAgendamento, type AgendamentoBloco, type ProfissionalAgenda } from "./BlocoAgendamento";
 import { NovoAgendamento } from "./NovoAgendamento";
 import { obterPet } from "./actions";
+
+export const metadata = { title: "Agenda" };
 
 type Busca = { data?: string; visao?: string; novo?: string; pet?: string };
 
@@ -24,6 +27,8 @@ const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 export default async function AgendaPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const sp = await searchParams;
   const hoje = hojeISO();
+  const { horarios: HORARIOS } = await obterExpediente();
+  const session = await exigirSessao();
   const dia = sp.data && /^\d{4}-\d{2}-\d{2}$/.test(sp.data) ? sp.data : hoje;
   const visao: Visao = VISOES.find((v) => v.id === sp.visao)?.id ?? "dia";
   const inicio = visao === "semana" ? inicioDaSemana(dia) : dia;
@@ -41,7 +46,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
     sp.pet ? obterPet(sp.pet) : null,
   ]);
 
-  const blocos: (AgendamentoBloco & { dia: string; slot: number; slots: number })[] = agendamentos.map((a) => {
+  const profsAgenda: ProfissionalAgenda[] = profissionais.map((p) => ({ id: p.id, nome: p.nome, tipo: p.tipo }));
+  const blocos: (AgendamentoBloco & { slot: number; slots: number })[] = agendamentos.map((a) => {
     const hora = horaLocal(a.inicio);
     const slot = HORARIOS.findIndex((h) => h >= hora);
     return {
@@ -63,6 +69,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       valor: a.valorEstimado,
       pacote: a.pacoteId !== null,
       observacoes: a.observacoes,
+      duracaoMin: a.servico.duracaoMin,
+      tipoServico: a.servico.tipo,
     };
   });
 
@@ -86,6 +94,20 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         />
       </Cabecalho>
 
+      {(profissionais.length === 0 || servicos.length === 0) && (
+        <div className="card mb-4 border-primary/30 bg-primary-soft p-5">
+          <p className="font-semibold">Primeiros passos</p>
+          <p className="mt-1 text-sm text-suave">
+            Para começar a agendar, cadastre {servicos.length === 0 && profissionais.length === 0 ? "os serviços e os profissionais" : servicos.length === 0 ? "os serviços" : "os profissionais"} do pet shop.
+          </p>
+          {session.user.perfil === "ADMIN" ? (
+            <Link href="/configuracoes" className="btn-primary mt-3">Ir para Configurações</Link>
+          ) : (
+            <p className="mt-2 text-sm">Peça ao administrador para fazer esse cadastro.</p>
+          )}
+        </div>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex">
           <Link href={url(somarDias(dia, -passo))} className="btn-secondary rounded-r-none px-2.5" aria-label="Anterior"><ChevronLeft size={16} /></Link>
@@ -107,7 +129,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       </div>
 
       {visao === "lista" ? (
-        <ListaHorarios dias={dias} blocos={blocos} hoje={hoje} />
+        <ListaHorarios dias={dias} blocos={blocos} hoje={hoje} profissionais={profsAgenda} />
       ) : (
       <div className="card overflow-x-auto">
         {visao === "dia" ? (
@@ -145,7 +167,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
               return (
                 <div key={b.id} className="z-[1] p-0.5" style={{ gridColumn: col + 2, gridRow: `${b.slot + 2} / span ${Math.min(b.slots, HORARIOS.length - b.slot)}` }}>
                   {/* Blocos de 30 min só comportam duas linhas */}
-                  <BlocoAgendamento ag={b} compacto={b.slots === 1} />
+                  <BlocoAgendamento ag={b} profissionais={profsAgenda} hoje={hoje} compacto={b.slots === 1} />
                 </div>
               );
             })}
@@ -173,7 +195,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                     {blocos
                       .filter((b) => b.dia === d && HORARIOS[b.slot] === h)
                       .map((b) => (
-                        <BlocoAgendamento key={b.id} ag={b} compacto />
+                        <BlocoAgendamento key={b.id} ag={b} profissionais={profsAgenda} hoje={hoje} compacto />
                       ))}
                   </div>
                 ))}
@@ -188,7 +210,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
 }
 
 /** Horários marcados dos próximos dias, agrupados por data */
-function ListaHorarios({ dias, blocos, hoje }: { dias: string[]; blocos: (AgendamentoBloco & { dia: string })[]; hoje: string }) {
+function ListaHorarios({ dias, blocos, hoje, profissionais }: { dias: string[]; blocos: AgendamentoBloco[]; hoje: string; profissionais: ProfissionalAgenda[] }) {
   const comHorario = dias.filter((d) => blocos.some((b) => b.dia === d));
   if (comHorario.length === 0) {
     return (
@@ -212,7 +234,7 @@ function ListaHorarios({ dias, blocos, hoje }: { dias: string[]; blocos: (Agenda
             </div>
             <div className="divide-y divide-borda">
               {doDia.map((b) => (
-                <LinhaAgendamento key={b.id} ag={b} />
+                <LinhaAgendamento key={b.id} ag={b} profissionais={profissionais} hoje={hoje} />
               ))}
             </div>
           </section>

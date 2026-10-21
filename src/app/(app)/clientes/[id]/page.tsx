@@ -2,15 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MessageCircle, Pencil, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { exigirSessao } from "@/lib/auth";
+import { BotaoExcluir } from "@/components/BotaoExcluir";
 import { diaISO, formatarData, horaLocal, idade } from "@/lib/datas";
 import { formatarTelefone, ROTULO_ESPECIE, ROTULO_SEXO } from "@/lib/formato";
 import { linkWaMe } from "@/lib/whatsapp";
 import { Cabecalho, CardTitulo, StatusPill, Vazio } from "@/components/ui";
 import { Modal } from "@/components/Modal";
 import { FormPet, FormTutor } from "../Forms";
+import { excluirTutor } from "../actions";
 
 export default async function TutorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await exigirSessao();
   const tutor = await prisma.tutor.findUnique({
     where: { id },
     include: {
@@ -49,6 +53,12 @@ export default async function TutorPage({ params }: { params: Promise<{ id: stri
         <Modal titulo="Editar tutor" gatilho={<><Pencil size={16} /> Editar</>} classeGatilho="btn-secondary">
           <FormTutor tutor={{ id: tutor.id, nome: tutor.nome, telefone: tutor.telefone, email: tutor.email, cpf: tutor.cpf, endereco: tutor.endereco }} />
         </Modal>
+        {session.user.perfil === "ADMIN" && (
+          <BotaoExcluir
+            acao={excluirTutor.bind(null, tutor.id)}
+            confirmacao={`Excluir ${tutor.nome} e TODOS os pets dele (${tutor.pets.length}), com vacinas e histórico? Isso não pode ser desfeito.`}
+          />
+        )}
         <Modal titulo="Novo pet" gatilho={<><Plus size={16} /> Novo pet</>}>
           <FormPet tutorId={tutor.id} />
         </Modal>
