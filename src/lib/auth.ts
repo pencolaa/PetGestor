@@ -17,8 +17,9 @@ export const authOptions: NextAuthOptions = {
         senha: { label: "Senha", type: "password" },
       },
       async authorize(credentials) {
-        const email = credentials?.email?.trim().toLowerCase();
-        const senha = credentials?.senha;
+        // Remove espaços e caracteres invisíveis que vêm junto ao copiar e colar
+        const email = credentials?.email?.replace(/[\s​-‍﻿]/g, "").toLowerCase();
+        const senha = credentials?.senha?.replace(/[​-‍﻿]/g, "").trim();
         if (!email || !senha) return null;
         const usuario = await prisma.usuario.findUnique({ where: { email } });
         if (!usuario || !usuario.ativo) return null;

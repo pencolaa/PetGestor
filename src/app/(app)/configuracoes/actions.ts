@@ -28,7 +28,7 @@ export async function criarUsuario(_: Resultado, form: FormData): Promise<Result
   await exigirAdmin();
   const nome = String(form.get("nome") ?? "").trim();
   const email = String(form.get("email") ?? "").trim().toLowerCase();
-  const senha = String(form.get("senha") ?? "");
+  const senha = String(form.get("senha") ?? "").trim();
   const perfil = form.get("perfil") === "ADMIN" ? "ADMIN" : "ATENDENTE";
   if (!nome || !email) return { ok: false, mensagem: "Preencha nome e e-mail." };
   if (senha.length < 6) return { ok: false, mensagem: "A senha deve ter pelo menos 6 caracteres." };
