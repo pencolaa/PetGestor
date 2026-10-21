@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { StatusAgendamento } from "@prisma/client";
-import { MessageCircle, ShoppingCart } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { StatusPill } from "@/components/ui";
 import { formatarMoeda, formatarTelefone, ROTULO_STATUS } from "@/lib/formato";
@@ -23,7 +23,6 @@ export type AgendamentoBloco = {
   profissional: string;
   profissionalId: string;
   valor: number;
-  pago: boolean;
   pacote: boolean;
   observacoes: string | null;
 };
@@ -71,6 +70,30 @@ export function BlocoAgendamento({ ag, compacto = false }: { ag: AgendamentoBloc
   );
 }
 
+/** Linha da visão "Lista": horário, pet, tutor, serviço, profissional e status */
+export function LinhaAgendamento({ ag }: { ag: AgendamentoBloco }) {
+  return (
+    <Modal
+      titulo={`${emoji(ag.especie)} ${ag.pet} — ${ag.servico}`}
+      classeGatilho="grid w-full grid-cols-[88px_1fr] items-center gap-x-4 gap-y-1 px-5 py-3 text-left text-sm transition hover:bg-fundo sm:grid-cols-[76px_1fr_1.3fr_100px_150px]"
+      gatilho={
+        <>
+          <span className="font-semibold tabular-nums">{ag.inicio}<span className="block text-xs font-normal text-suave">até {ag.fim}</span></span>
+          <span className="min-w-0">
+            <span className="block truncate font-semibold">{emoji(ag.especie)} {ag.pet}</span>
+            <span className="block truncate text-xs text-suave">{ag.tutor}</span>
+          </span>
+          <span className="col-start-2 truncate text-suave sm:col-start-auto">{ag.servico}</span>
+          <span className="col-start-2 truncate text-suave sm:col-start-auto">{ag.profissional}</span>
+          <span className="col-start-2 sm:col-start-auto"><StatusPill status={ag.status} /></span>
+        </>
+      }
+    >
+      <Detalhes ag={ag} />
+    </Modal>
+  );
+}
+
 function Detalhes({ ag }: { ag: AgendamentoBloco }) {
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState("");
@@ -97,7 +120,6 @@ function Detalhes({ ag }: { ag: AgendamentoBloco }) {
     ["Profissional", ag.profissional],
     ["Tutor", `${ag.tutor} · ${formatarTelefone(ag.telefone)}`],
     ["Valor", ag.pacote ? "Pacote de banhos" : formatarMoeda(ag.valor)],
-    ["Pagamento", ag.pago ? "Pago" : "Pendente"],
   ];
 
   return (
@@ -137,9 +159,6 @@ function Detalhes({ ag }: { ag: AgendamentoBloco }) {
       <div className="flex flex-wrap gap-2 border-t border-borda pt-4">
         <button onClick={() => avisar("confirmacao")} className="btn-whatsapp"><MessageCircle size={14} /> Confirmar</button>
         <button onClick={() => avisar("pronto")} className="btn-whatsapp"><MessageCircle size={14} /> Avisar pronto</button>
-        {!ag.pago && ag.status !== "CANCELADO" && (
-          <Link href={`/pdv?agendamento=${ag.id}`} className="btn-primary px-3 py-1.5 text-xs"><ShoppingCart size={14} /> Cobrar no PDV</Link>
-        )}
         {ag.status === "CANCELADO" ? (
           <button onClick={() => mudar("AGUARDANDO")} disabled={pendente} className="btn-ghost ml-auto px-3 py-1.5 text-xs">Reativar</button>
         ) : (

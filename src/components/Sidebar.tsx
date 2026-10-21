@@ -3,14 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { CalendarDays, LayoutDashboard, LogOut, Package, PawPrint, Settings, ShoppingCart } from "lucide-react";
+import { CalendarDays, LogOut, PawPrint, Settings } from "lucide-react";
 
 const ITENS = [
-  { href: "/", rotulo: "Painel", icone: LayoutDashboard },
   { href: "/agenda", rotulo: "Agenda", icone: CalendarDays },
   { href: "/clientes", rotulo: "Clientes e pets", icone: PawPrint },
-  { href: "/pdv", rotulo: "Vendas (PDV)", icone: ShoppingCart },
-  { href: "/estoque", rotulo: "Estoque", icone: Package },
 ];
 
 type Props = {
@@ -22,7 +19,7 @@ type Props = {
 export function Sidebar({ nomePetShop, logoUrl, usuario }: Props) {
   const pathname = usePathname();
   const itens = usuario.perfil === "ADMIN" ? [...ITENS, { href: "/configuracoes", rotulo: "Configurações", icone: Settings }] : ITENS;
-  const ativo = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const ativo = (href: string) => pathname.startsWith(href);
 
   return (
     <aside className="sticky top-0 z-30 flex shrink-0 flex-col bg-sidebar text-white md:h-screen md:w-60">

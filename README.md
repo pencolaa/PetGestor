@@ -1,8 +1,8 @@
 # PetGestor — gestão para pet shops
 
-Sistema web para pequenos pet shops: agenda de banho/tosa/veterinária, clientes e pets
-(vacinas, pacotes, histórico), PDV com produtos e serviços no mesmo carrinho, estoque e
-painel com lembretes de WhatsApp.
+Sistema web para pequenos pet shops, focado em duas coisas: **clientes e pets** (ficha,
+vacinas, pacotes de banho, histórico) e **agenda** de banho, tosa e veterinária, com visão
+por dia, por semana e lista dos horários marcados.
 
 **Stack:** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · Prisma 6 + PostgreSQL · NextAuth (e-mail e senha)
 
@@ -24,25 +24,23 @@ Logins de demonstração (criados pelo seed):
 | Admin     | admin@petshop.com      | admin123     |
 | Atendente | atendente@petshop.com  | atendente123 |
 
-O seed gera os dados **relativos à data de hoje** (agenda do dia, vacinas vencendo,
-aniversários da semana), então a demonstração sempre parece "viva". Rodar o seed de novo
+O seed gera os dados **relativos à data de hoje** (agenda do dia e dos próximos dias,
+vacinas vencendo), então a demonstração sempre parece "viva". Rodar o seed de novo
 apaga e recria tudo — e invalida sessões abertas (é só entrar de novo).
 
 ## Perfis
 
-- **Admin:** tudo, mais Configurações (nome, cor principal, logo, usuários), cadastro/edição
-  de produtos e entrada de mercadoria.
-- **Atendente:** painel, agenda, clientes e pets, PDV e consulta de estoque.
+- **Admin:** tudo, mais Configurações (nome, cor principal, logo, usuários).
+- **Atendente:** agenda e clientes e pets.
 
 ## Organização
 
 ```
 prisma/schema.prisma        modelo de dados (valores em centavos)
 prisma/seed.ts              dados de demonstração
-src/app/(app)/              telas autenticadas: painel, agenda, clientes, pdv, estoque, configuracoes
+src/app/(app)/              telas autenticadas: agenda (tela inicial), clientes, configuracoes
 src/lib/datas.ts            datas sempre no fuso America/Sao_Paulo
 src/lib/agenda.ts           horários de funcionamento e checagem de conflito
-src/lib/lembretes.ts        vacinas vencendo, 30+ dias sem banho, aniversários
 src/lib/whatsapp/           camada isolada de WhatsApp (hoje: links wa.me)
 ```
 
@@ -58,6 +56,6 @@ implemente `ProvedorWhatsApp` com `modo: "api"` e troque o retorno de `provedorW
 - **Conflito de agenda:** o mesmo profissional não pode ter dois atendimentos sobrepostos
   (checado no servidor com trava por profissional; cancelados liberam o horário).
 - **Pacotes:** agendar com pacote consome um banho; cancelar devolve.
-- **PDV:** preços sempre lidos do banco; a baixa de estoque é atômica e falha se não houver
-  saldo; atendimentos da agenda cobrados no PDV ficam marcados como pagos.
+- As tabelas de produtos, estoque e vendas continuam no banco (sem uso pelas telas), para
+  não perder dados; podem ser removidas numa migração futura.
 - Horário de funcionamento (08:00–18:00, blocos de 30 min) em `src/lib/agenda.ts`.

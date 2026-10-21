@@ -1,4 +1,4 @@
-import { PrismaClient, type Especie, type Sexo, type StatusAgendamento, type FormaPagamento } from "@prisma/client";
+import { PrismaClient, type Especie, type Sexo, type StatusAgendamento } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { dataHora, hojeISO, somarDias } from "../src/lib/datas";
 
@@ -46,10 +46,10 @@ async function main() {
     },
   });
 
-  const admin = await prisma.usuario.create({
+  await prisma.usuario.create({
     data: { nome: "Mariana Souza", email: "admin@petshop.com", senhaHash: await bcrypt.hash("admin123", 10), perfil: "ADMIN" },
   });
-  const atendente = await prisma.usuario.create({
+  await prisma.usuario.create({
     data: { nome: "Lucas Lima", email: "atendente@petshop.com", senhaHash: await bcrypt.hash("atendente123", 10), perfil: "ATENDENTE" },
   });
 
@@ -119,10 +119,8 @@ async function main() {
   tutores[6].pets[0].nasc = `2020-${dia(5).slice(5)}`;
 
   const pets: Awaited<ReturnType<typeof prisma.pet.create>>[] = [];
-  const tutoresCriados: Awaited<ReturnType<typeof prisma.tutor.create>>[] = [];
   for (const t of tutores) {
     const tutor = await prisma.tutor.create({ data: { nome: t.nome, telefone: t.telefone, email: t.email } });
-    tutoresCriados.push(tutor);
     for (const p of t.pets) {
       pets.push(
         await prisma.pet.create({
@@ -172,22 +170,14 @@ async function main() {
     if (i % 4 === 2 && !semBanhoRecente.has(i)) historico.push({ pet: i, dias: -(6 + i), hora: "14:00", servico: s.tosaComp, prof: carla });
   }
 
-  const formas: FormaPagamento[] = ["PIX", "PIX", "CREDITO", "DEBITO", "DINHEIRO"];
   for (const h of historico) {
     const pet = pets[h.pet];
     const inicio = dataHora(dia(h.dias), h.hora);
-    const ag = await prisma.agendamento.create({
+    await prisma.agendamento.create({
       data: {
         petId: pet.id, servicoId: h.servico.id, profissionalId: h.prof.id, inicio,
         fim: new Date(inicio.getTime() + h.servico.duracaoMin * 60000),
         status: "CONCLUIDO", valorEstimado: h.servico.preco, pago: true,
-      },
-    });
-    await prisma.venda.create({
-      data: {
-        tutorId: pet.tutorId, usuarioId: atendente.id, subtotal: h.servico.preco, total: h.servico.preco,
-        formaPagamento: escolher(formas), criadoEm: new Date(inicio.getTime() + h.servico.duracaoMin * 60000),
-        itens: { create: [{ servicoId: h.servico.id, agendamentoId: ag.id, descricao: `${h.servico.nome} — ${pet.nome}`, quantidade: 1, precoUnitario: h.servico.preco, total: h.servico.preco }] },
       },
     });
   }
@@ -238,74 +228,7 @@ async function main() {
     });
   }
 
-  // Produtos
-  const produtos: [string, string, "RACOES" | "HIGIENE" | "MEDICAMENTOS" | "ACESSORIOS", number, number, number, number][] = [
-    // nome, código, categoria, preço, custo, estoque, mínimo
-    ["Ração Golden Adulto 15kg", "7896015010012", "RACOES", 18990, 13500, 8, 4],
-    ["Ração Premier Filhote 2,5kg", "7896015010029", "RACOES", 8990, 6200, 3, 5],
-    ["Ração Royal Canin Mini Adult 1kg", "7896015010036", "RACOES", 7490, 5100, 12, 5],
-    ["Ração Whiskas Gatos 1kg", "7896015010043", "RACOES", 2990, 1900, 2, 6],
-    ["Sachê Pedigree Carne 100g", "7896015010050", "RACOES", 390, 210, 48, 20],
-    ["Petisco Bifinho Keldog 65g", "7896015010067", "RACOES", 990, 550, 25, 10],
-    ["Shampoo Neutro Pet Clean 500ml", "7896015020011", "HIGIENE", 2490, 1300, 14, 5],
-    ["Condicionador Hidratante 500ml", "7896015020028", "HIGIENE", 2790, 1450, 4, 5],
-    ["Tapete Higiênico 30un", "7896015020035", "HIGIENE", 5990, 3800, 9, 6],
-    ["Areia Sanitária Pipicat 4kg", "7896015020042", "HIGIENE", 1990, 1100, 18, 8],
-    ["Escova de Dentes Pet + Pasta", "7896015020059", "HIGIENE", 1890, 900, 7, 3],
-    ["Antipulgas NexGard 4-10kg", "7896015030010", "MEDICAMENTOS", 8990, 6300, 6, 4],
-    ["Vermífugo Drontal Plus", "7896015030027", "MEDICAMENTOS", 4590, 3000, 1, 4],
-    ["Coleira Seresto Pequeno Porte", "7896015030034", "MEDICAMENTOS", 24990, 18000, 3, 2],
-    ["Simparic 10-20kg", "7896015030041", "MEDICAMENTOS", 9990, 7100, 5, 3],
-    ["Coleira Nylon Ajustável M", "7896015040019", "ACESSORIOS", 3490, 1500, 11, 4],
-    ["Guia Retrátil 5m", "7896015040026", "ACESSORIOS", 6990, 3900, 5, 2],
-    ["Comedouro Inox 500ml", "7896015040033", "ACESSORIOS", 2990, 1400, 0, 3],
-    ["Brinquedo Bola com Corda", "7896015040040", "ACESSORIOS", 1990, 800, 22, 5],
-    ["Cama Pet Redonda M", "7896015040057", "ACESSORIOS", 12990, 7500, 2, 2],
-    ["Arranhador para Gatos", "7896015040064", "ACESSORIOS", 8990, 4800, 4, 2],
-  ];
-  const produtosCriados: Awaited<ReturnType<typeof prisma.produto.create>>[] = [];
-  for (const [nome, codigoBarras, categoria, preco, custo, estoque, estoqueMinimo] of produtos) {
-    const p = await prisma.produto.create({ data: { nome, codigoBarras, categoria, preco, custo, estoque, estoqueMinimo } });
-    await prisma.movimentacaoEstoque.create({
-      data: { produtoId: p.id, tipo: "ENTRADA", quantidade: estoque + 10, custoUnitario: custo, motivo: "Estoque inicial", usuarioId: admin.id, criadoEm: dataHora(dia(-60), "09:00") },
-    });
-    produtosCriados.push(p);
-  }
-
-  // Vendas de produtos: algumas hoje e outras no último mês
-  const vendasProdutos: { d: number; hora: string; itens: [number, number][]; tutor?: number; forma: FormaPagamento; desconto?: number }[] = [
-    { d: 0, hora: "08:40", itens: [[0, 1]], tutor: 0, forma: "CREDITO" },
-    { d: 0, hora: "09:15", itens: [[4, 6], [5, 2]], forma: "PIX" },
-    { d: 0, hora: "10:05", itens: [[11, 1], [15, 1]], tutor: 7, forma: "DEBITO", desconto: 500 },
-    { d: -1, hora: "16:20", itens: [[2, 1], [9, 2]], tutor: 3, forma: "PIX" },
-    { d: -2, hora: "11:00", itens: [[13, 1]], tutor: 5, forma: "CREDITO" },
-    { d: -5, hora: "15:30", itens: [[6, 1], [7, 1]], forma: "DINHEIRO" },
-    { d: -8, hora: "10:10", itens: [[8, 2], [18, 1]], tutor: 8, forma: "PIX" },
-    { d: -12, hora: "17:45", itens: [[0, 1], [5, 3]], tutor: 4, forma: "CREDITO" },
-    { d: -20, hora: "12:00", itens: [[3, 2], [9, 1]], tutor: 6, forma: "PIX" },
-  ];
-  for (const v of vendasProdutos) {
-    const itens = v.itens.map(([idx, qtd]) => {
-      const p = produtosCriados[idx];
-      return { produtoId: p.id, descricao: p.nome, quantidade: qtd, precoUnitario: p.preco, total: p.preco * qtd };
-    });
-    const subtotal = itens.reduce((acc, i) => acc + i.total, 0);
-    const criadoEm = dataHora(dia(v.d), v.hora);
-    const venda = await prisma.venda.create({
-      data: {
-        tutorId: v.tutor !== undefined ? tutoresCriados[v.tutor].id : null, usuarioId: atendente.id, subtotal,
-        desconto: v.desconto ?? 0, total: subtotal - (v.desconto ?? 0), formaPagamento: v.forma, criadoEm,
-        itens: { create: itens },
-      },
-    });
-    for (const i of itens) {
-      await prisma.movimentacaoEstoque.create({
-        data: { produtoId: i.produtoId, tipo: "SAIDA", quantidade: -i.quantidade, vendaId: venda.id, motivo: "Venda", usuarioId: atendente.id, criadoEm },
-      });
-    }
-  }
-
-  console.log(`Seed concluído: ${tutores.length} tutores, ${pets.length} pets, ${produtos.length} produtos.`);
+  console.log(`Seed concluído: ${tutores.length} tutores e ${pets.length} pets.`);
   console.log("Login admin: admin@petshop.com / admin123 — atendente: atendente@petshop.com / atendente123");
 }
 

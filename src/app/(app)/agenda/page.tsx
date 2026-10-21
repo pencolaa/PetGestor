@@ -4,23 +4,31 @@ import { prisma } from "@/lib/prisma";
 import { HORARIOS, OCUPA_AGENDA } from "@/lib/agenda";
 import { diaISO, diaDaSemana, fimDoDia, formatarData, hojeISO, horaLocal, inicioDaSemana, inicioDoDia, somarDias } from "@/lib/datas";
 import { ROTULO_TIPO_SERVICO } from "@/lib/formato";
-import { Cabecalho } from "@/components/ui";
-import { BlocoAgendamento, type AgendamentoBloco } from "./BlocoAgendamento";
+import { Cabecalho, Vazio } from "@/components/ui";
+import { BlocoAgendamento, LinhaAgendamento, type AgendamentoBloco } from "./BlocoAgendamento";
 import { NovoAgendamento } from "./NovoAgendamento";
 import { obterPet } from "./actions";
 
 type Busca = { data?: string; visao?: string; novo?: string; pet?: string };
 
 const ALTURA_SLOT = 44;
+const DIAS_LISTA = 14;
+const VISOES = [
+  { id: "dia", rotulo: "Dia" },
+  { id: "semana", rotulo: "Semana" },
+  { id: "lista", rotulo: "Lista" },
+] as const;
+type Visao = (typeof VISOES)[number]["id"];
 const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 export default async function AgendaPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const sp = await searchParams;
   const hoje = hojeISO();
   const dia = sp.data && /^\d{4}-\d{2}-\d{2}$/.test(sp.data) ? sp.data : hoje;
-  const visao = sp.visao === "semana" ? "semana" : "dia";
+  const visao: Visao = VISOES.find((v) => v.id === sp.visao)?.id ?? "dia";
   const inicio = visao === "semana" ? inicioDaSemana(dia) : dia;
-  const dias = visao === "semana" ? Array.from({ length: 7 }, (_, i) => somarDias(inicio, i)) : [dia];
+  const qtdDias = visao === "semana" ? 7 : visao === "lista" ? DIAS_LISTA : 1;
+  const dias = Array.from({ length: qtdDias }, (_, i) => somarDias(inicio, i));
 
   const [profissionais, servicos, agendamentos, petInicial] = await Promise.all([
     prisma.profissional.findMany({ where: { ativo: true }, orderBy: [{ tipo: "asc" }, { nome: "asc" }] }),
@@ -53,18 +61,17 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       profissional: a.profissional.nome,
       profissionalId: a.profissionalId,
       valor: a.valorEstimado,
-      pago: a.pago,
       pacote: a.pacoteId !== null,
       observacoes: a.observacoes,
     };
   });
 
-  const passo = visao === "semana" ? 7 : 1;
+  const passo = qtdDias;
   const url = (d: string, v = visao) => `/agenda?data=${d}&visao=${v}`;
   const titulo =
-    visao === "semana"
-      ? `${formatarData(dias[0], { day: "2-digit", month: "short" })} – ${formatarData(dias[6], { day: "2-digit", month: "short", year: "numeric" })}`
-      : formatarData(dia, { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+    visao === "dia"
+      ? formatarData(dia, { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
+      : `${formatarData(dias[0], { day: "2-digit", month: "short" })} – ${formatarData(dias[dias.length - 1], { day: "2-digit", month: "short", year: "numeric" })}`;
 
   return (
     <>
@@ -91,14 +98,17 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
           <button className="btn-secondary">Ir</button>
         </form>
         <div className="ml-auto flex rounded-lg border border-borda bg-white p-0.5">
-          {(["dia", "semana"] as const).map((v) => (
-            <Link key={v} href={url(dia, v)} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${visao === v ? "bg-primary text-white" : "text-suave hover:text-texto"}`}>
-              {v === "dia" ? "Dia" : "Semana"}
+          {VISOES.map((v) => (
+            <Link key={v.id} href={url(dia, v.id)} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${visao === v.id ? "bg-primary text-white" : "text-suave hover:text-texto"}`}>
+              {v.rotulo}
             </Link>
           ))}
         </div>
       </div>
 
+      {visao === "lista" ? (
+        <ListaHorarios dias={dias} blocos={blocos} hoje={hoje} />
+      ) : (
       <div className="card overflow-x-auto">
         {visao === "dia" ? (
           <div
@@ -172,6 +182,42 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
           </div>
         )}
       </div>
+      )}
     </>
+  );
+}
+
+/** Horários marcados dos próximos dias, agrupados por data */
+function ListaHorarios({ dias, blocos, hoje }: { dias: string[]; blocos: (AgendamentoBloco & { dia: string })[]; hoje: string }) {
+  const comHorario = dias.filter((d) => blocos.some((b) => b.dia === d));
+  if (comHorario.length === 0) {
+    return (
+      <div className="card">
+        <Vazio>Nenhum horário marcado nesse período.</Vazio>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      {comHorario.map((d) => {
+        const doDia = blocos.filter((b) => b.dia === d);
+        return (
+          <section key={d} className="card overflow-hidden">
+            <div className={`flex items-center justify-between border-b border-borda px-5 py-3 ${d === hoje ? "bg-primary-soft" : ""}`}>
+              <Link href={`/agenda?data=${d}&visao=dia`} className="font-semibold first-letter:uppercase hover:text-primary">
+                {d === hoje ? "Hoje · " : ""}
+                {formatarData(d, { weekday: "long", day: "2-digit", month: "long" })}
+              </Link>
+              <span className="text-sm text-suave">{doDia.length} {doDia.length === 1 ? "horário" : "horários"}</span>
+            </div>
+            <div className="divide-y divide-borda">
+              {doDia.map((b) => (
+                <LinhaAgendamento key={b.id} ag={b} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }

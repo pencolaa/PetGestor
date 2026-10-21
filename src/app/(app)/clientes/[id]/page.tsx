@@ -2,10 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MessageCircle, Pencil, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { formatarData, horaLocal, idade } from "@/lib/datas";
-import { formatarMoeda, formatarTelefone, ROTULO_ESPECIE, ROTULO_PAGAMENTO, ROTULO_SEXO } from "@/lib/formato";
+import { diaISO, formatarData, horaLocal, idade } from "@/lib/datas";
+import { formatarTelefone, ROTULO_ESPECIE, ROTULO_SEXO } from "@/lib/formato";
 import { linkWaMe } from "@/lib/whatsapp";
-import { Cabecalho, CardTitulo, Vazio } from "@/components/ui";
+import { Cabecalho, CardTitulo, StatusPill, Vazio } from "@/components/ui";
 import { Modal } from "@/components/Modal";
 import { FormPet, FormTutor } from "../Forms";
 
@@ -15,10 +15,27 @@ export default async function TutorPage({ params }: { params: Promise<{ id: stri
     where: { id },
     include: {
       pets: { orderBy: { nome: "asc" } },
-      vendas: { orderBy: { criadoEm: "desc" }, take: 10, include: { itens: true } },
     },
   });
   if (!tutor) notFound();
+
+  // Próximos horários primeiro, depois os mais recentes
+  const agora = new Date();
+  const [proximos, recentes] = await Promise.all([
+    prisma.agendamento.findMany({
+      where: { pet: { tutorId: id }, inicio: { gte: agora }, status: { not: "CANCELADO" } },
+      include: { pet: true, servico: true, profissional: true },
+      orderBy: { inicio: "asc" },
+      take: 10,
+    }),
+    prisma.agendamento.findMany({
+      where: { pet: { tutorId: id }, inicio: { lt: agora } },
+      include: { pet: true, servico: true, profissional: true },
+      orderBy: { inicio: "desc" },
+      take: 10,
+    }),
+  ]);
+  const agendamentos = [...proximos, ...recentes];
 
   return (
     <>
@@ -75,20 +92,25 @@ export default async function TutorPage({ params }: { params: Promise<{ id: stri
           </section>
 
           <section className="card">
-            <CardTitulo titulo="Últimas compras" />
-            {tutor.vendas.length === 0 ? (
-              <Vazio>Nenhuma compra registrada.</Vazio>
+            <CardTitulo titulo="Agendamentos">
+              <Link href="/agenda?novo=1" className="text-sm font-semibold text-primary hover:underline">Novo agendamento</Link>
+            </CardTitulo>
+            {agendamentos.length === 0 ? (
+              <Vazio>Nenhum agendamento ainda.</Vazio>
             ) : (
               <div className="overflow-x-auto">
                 <table className="tabela">
-                  <thead><tr><th>Data</th><th>Itens</th><th>Pagamento</th><th className="text-right">Total</th></tr></thead>
+                  <thead><tr><th>Data</th><th>Pet</th><th>Serviço</th><th>Profissional</th><th>Status</th></tr></thead>
                   <tbody>
-                    {tutor.vendas.map((v) => (
-                      <tr key={v.id}>
-                        <td className="whitespace-nowrap">{formatarData(v.criadoEm)} {horaLocal(v.criadoEm)}</td>
-                        <td className="text-suave">{v.itens.map((i) => `${i.quantidade}× ${i.descricao}`).join(", ")}</td>
-                        <td>{ROTULO_PAGAMENTO[v.formaPagamento]}</td>
-                        <td className="text-right font-semibold">{formatarMoeda(v.total)}</td>
+                    {agendamentos.map((a) => (
+                      <tr key={a.id} className={a.inicio >= agora ? "bg-primary-soft/40" : ""}>
+                        <td className="whitespace-nowrap">
+                          <Link href={`/agenda?data=${diaISO(a.inicio)}`} className="hover:text-primary">{formatarData(a.inicio)} {horaLocal(a.inicio)}</Link>
+                        </td>
+                        <td><Link href={`/clientes/pets/${a.petId}`} className="font-medium hover:text-primary">{a.pet.nome}</Link></td>
+                        <td>{a.servico.nome}</td>
+                        <td className="text-suave">{a.profissional.nome}</td>
+                        <td><StatusPill status={a.status} /></td>
                       </tr>
                     ))}
                   </tbody>

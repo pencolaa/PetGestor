@@ -33,13 +33,6 @@ export function formatarTelefone(tel: string): string {
 export const ROTULO_ESPECIE = { CAO: "Cão", GATO: "Gato", OUTRO: "Outro" } as const;
 export const ROTULO_SEXO = { MACHO: "Macho", FEMEA: "Fêmea" } as const;
 export const ROTULO_TIPO_SERVICO = { BANHO: "Banho", TOSA: "Tosa", VETERINARIA: "Veterinária" } as const;
-export const ROTULO_CATEGORIA = {
-  RACOES: "Rações",
-  HIGIENE: "Higiene",
-  MEDICAMENTOS: "Medicamentos",
-  ACESSORIOS: "Acessórios",
-} as const;
-export const ROTULO_PAGAMENTO = { PIX: "Pix", CREDITO: "Crédito", DEBITO: "Débito", DINHEIRO: "Dinheiro" } as const;
 export const ROTULO_STATUS = {
   AGUARDANDO: "Aguardando",
   CONFIRMADO: "Confirmado",

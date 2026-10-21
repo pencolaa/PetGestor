@@ -6,7 +6,7 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakart
 
 export const metadata: Metadata = {
   title: "PetGestor",
-  description: "Gestão para pet shops: agenda, clientes, vendas e estoque",
+  description: "Gestão para pet shops: agenda de horários, clientes e pets",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
