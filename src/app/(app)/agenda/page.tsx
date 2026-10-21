@@ -134,7 +134,8 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
               if (col < 0) return null;
               return (
                 <div key={b.id} className="z-[1] p-0.5" style={{ gridColumn: col + 2, gridRow: `${b.slot + 2} / span ${Math.min(b.slots, HORARIOS.length - b.slot)}` }}>
-                  <BlocoAgendamento ag={b} />
+                  {/* Blocos de 30 min só comportam duas linhas */}
+                  <BlocoAgendamento ag={b} compacto={b.slots === 1} />
                 </div>
               );
             })}
