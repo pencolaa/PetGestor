@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: petshop-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: petshop
+      POSTGRES_PASSWORD: petshop
+      POSTGRES_DB: petshop
+    ports:
+      - "5433:5432"
+    volumes:
+      - petshop-data:/var/lib/postgresql/data
+
+volumes:
+  petshop-data:

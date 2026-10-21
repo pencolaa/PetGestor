@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PetGestor — gestão para pet shops
 
-## Getting Started
+Sistema web para pequenos pet shops: agenda de banho/tosa/veterinária, clientes e pets
+(vacinas, pacotes, histórico), PDV com produtos e serviços no mesmo carrinho, estoque e
+painel com lembretes de WhatsApp.
 
-First, run the development server:
+**Stack:** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · Prisma 6 + PostgreSQL · NextAuth (e-mail e senha)
+
+## Rodando localmente
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env          # ajuste NEXTAUTH_SECRET
+npm install
+npm run db:up                 # sobe o PostgreSQL no Docker (porta 5433)
+npm run db:migrate            # cria as tabelas
+npm run db:seed               # dados de demonstração
+npm run dev                   # http://localhost:3300
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Logins de demonstração (criados pelo seed):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Perfil    | E-mail                 | Senha        |
+|-----------|------------------------|--------------|
+| Admin     | admin@petshop.com      | admin123     |
+| Atendente | atendente@petshop.com  | atendente123 |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+O seed gera os dados **relativos à data de hoje** (agenda do dia, vacinas vencendo,
+aniversários da semana), então a demonstração sempre parece "viva". Rodar o seed de novo
+apaga e recria tudo — e invalida sessões abertas (é só entrar de novo).
 
-## Learn More
+## Perfis
 
-To learn more about Next.js, take a look at the following resources:
+- **Admin:** tudo, mais Configurações (nome, cor principal, logo, usuários), cadastro/edição
+  de produtos e entrada de mercadoria.
+- **Atendente:** painel, agenda, clientes e pets, PDV e consulta de estoque.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Organização
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+prisma/schema.prisma        modelo de dados (valores em centavos)
+prisma/seed.ts              dados de demonstração
+src/app/(app)/              telas autenticadas: painel, agenda, clientes, pdv, estoque, configuracoes
+src/lib/datas.ts            datas sempre no fuso America/Sao_Paulo
+src/lib/agenda.ts           horários de funcionamento e checagem de conflito
+src/lib/lembretes.ts        vacinas vencendo, 30+ dias sem banho, aniversários
+src/lib/whatsapp/           camada isolada de WhatsApp (hoje: links wa.me)
+```
 
-## Deploy on Vercel
+### WhatsApp
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Hoje os botões abrem `wa.me` com a mensagem pronta. Todos os textos ficam em
+`src/lib/whatsapp/mensagens.ts`, e o envio passa por `provedorWhatsApp()` em
+`src/lib/whatsapp/index.ts`. Para usar uma API oficial (Meta Cloud API, Z-API, Twilio...),
+implemente `ProvedorWhatsApp` com `modo: "api"` e troque o retorno de `provedorWhatsApp()`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Regras importantes
+
+- **Conflito de agenda:** o mesmo profissional não pode ter dois atendimentos sobrepostos
+  (checado no servidor com trava por profissional; cancelados liberam o horário).
+- **Pacotes:** agendar com pacote consome um banho; cancelar devolve.
+- **PDV:** preços sempre lidos do banco; a baixa de estoque é atômica e falha se não houver
+  saldo; atendimentos da agenda cobrados no PDV ficam marcados como pagos.
+- Horário de funcionamento (08:00–18:00, blocos de 30 min) em `src/lib/agenda.ts`.

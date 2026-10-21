@@ -1,0 +1,21 @@
+import { exigirSessao } from "@/lib/auth";
+import { obterConfiguracao } from "@/lib/configuracao";
+import { Sidebar } from "@/components/Sidebar";
+
+export const dynamic = "force-dynamic";
+
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const session = await exigirSessao();
+  const config = await obterConfiguracao();
+
+  return (
+    <div className="flex min-h-screen flex-col md:flex-row" style={{ "--cor-principal": config.corPrincipal } as React.CSSProperties}>
+      <Sidebar
+        nomePetShop={config.nomePetShop}
+        logoUrl={config.logoUrl}
+        usuario={{ nome: session.user.name ?? "", perfil: session.user.perfil }}
+      />
+      <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+    </div>
+  );
+}
