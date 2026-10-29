@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
+import { CampoSenha } from "@/components/CampoSenha";
 import { Mensagem } from "@/components/Mensagem";
 import { useFecharModal } from "@/components/Modal";
 import type { Resultado } from "@/lib/acoes";
@@ -165,7 +166,7 @@ export function FormUsuario() {
       <p className="font-semibold sm:col-span-2">Novo usuário</p>
       <input name="nome" placeholder="Nome" aria-label="Nome" className="input" required maxLength={120} />
       <input name="email" type="email" placeholder="E-mail" aria-label="E-mail" className="input" required maxLength={254} />
-      <input name="senha" type="password" placeholder="Senha (mín. 8)" aria-label="Senha" className="input" required minLength={8} maxLength={128} autoComplete="new-password" />
+      <CampoSenha name="senha" placeholder="Senha (mín. 8)" aria-label="Senha" required minLength={8} maxLength={128} autoComplete="off" data-lpignore="true" />
       <select name="perfil" className="input" aria-label="Perfil">
         <option value="ATENDENTE">Atendente</option>
         <option value="ADMIN">Administrador</option>
@@ -174,6 +175,7 @@ export function FormUsuario() {
         <button className="btn-primary" disabled={pendente}>Criar usuário</button>
         <Mensagem r={estado} />
       </div>
+      {estado?.ok && <p className="text-xs text-suave sm:col-span-2">Passe o e-mail e a senha para a pessoa. Ela pode trocar a senha depois em Minha conta.</p>}
     </form>
   );
 }

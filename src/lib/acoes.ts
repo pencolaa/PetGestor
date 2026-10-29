@@ -5,6 +5,19 @@ export function texto(form: FormData, campo: string, max = 200): string {
   return String(form.get(campo) ?? "").trim().slice(0, max);
 }
 
+// Caracteres invisíveis que vêm junto ao copiar e colar (de WhatsApp, PDF, e-mail...)
+const INVISIVEIS = /[\u200B-\u200D\u2060\uFEFF]/g;
+
+/** E-mail normalizado: sem espaços nem invisíveis, em minúsculas */
+export function limparEmail(valor: unknown): string {
+  return String(valor ?? "").replace(INVISIVEIS, "").replace(/\s/g, "").toLowerCase().slice(0, 254);
+}
+
+/** Senha sem invisíveis e sem espaços nas pontas (o mesmo tratamento no cadastro e no login) */
+export function limparSenha(valor: unknown): string {
+  return String(valor ?? "").replace(INVISIVEIS, "").replace(/\u00A0/g, " ").trim();
+}
+
 export function textoOuNull(form: FormData, campo: string, max = 200): string | null {
   return texto(form, campo, max) || null;
 }

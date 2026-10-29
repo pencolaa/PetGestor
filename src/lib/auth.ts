@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "./prisma";
+import { limparEmail, limparSenha } from "./acoes";
 import { ERRO_BLOQUEADO, estaBloqueado, ipDaRequisicao, limparFalhas, registrarFalha } from "./limiteLogin";
 
 // Hash bcrypt de uma senha aleatória, usado quando o e-mail não existe
@@ -25,8 +26,8 @@ export const authOptions: NextAuthOptions = {
         // Campo-isca invisível: só robôs preenchem
         if (credentials?.site) return null;
         // Remove espaços e caracteres invisíveis que vêm junto ao copiar e colar
-        const email = credentials?.email?.replace(/[\s\u200B-\u200D\uFEFF]/g, "").toLowerCase().slice(0, 254);
-        const senha = credentials?.senha?.replace(/[\u200B-\u200D\uFEFF]/g, "").trim().slice(0, 128);
+        const email = limparEmail(credentials?.email);
+        const senha = limparSenha(credentials?.senha).slice(0, 128);
         if (!email || !senha) return null;
 
         const ip = ipDaRequisicao(req?.headers);

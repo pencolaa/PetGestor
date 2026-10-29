@@ -2,12 +2,12 @@
 
 import type { TipoServico } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { exigirAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { emailValido, horaValida, inteiro, texto, textoOuNull, urlSegura, type Resultado } from "@/lib/acoes";
+import { emailValido, horaValida, inteiro, limparEmail, limparSenha, texto, textoOuNull, urlSegura, type Resultado } from "@/lib/acoes";
 import { parseMoeda } from "@/lib/formato";
+import { gerarSenha } from "@/lib/senhas";
 
 const TIPOS: TipoServico[] = ["BANHO", "TOSA", "VETERINARIA"];
 
@@ -88,8 +88,9 @@ export async function salvarProfissional(_: Resultado, form: FormData): Promise<
 export async function criarUsuario(_: Resultado, form: FormData): Promise<Resultado> {
   await exigirAdmin();
   const nome = texto(form, "nome", 120);
-  const email = texto(form, "email", 254).toLowerCase();
-  const senha = String(form.get("senha") ?? "").trim();
+  // Mesma limpeza do login, para o que foi cadastrado ser exatamente o que será digitado depois
+  const email = limparEmail(form.get("email"));
+  const senha = limparSenha(form.get("senha"));
   const perfil = form.get("perfil") === "ADMIN" ? "ADMIN" : "ATENDENTE";
   if (!nome || !email) return { ok: false, mensagem: "Preencha nome e e-mail." };
   if (!emailValido(email)) return { ok: false, mensagem: "E-mail inválido." };
@@ -115,7 +116,9 @@ export async function redefinirSenha(id: string): Promise<Resultado & { senha?: 
   if (id === session.user.id) return { ok: false, mensagem: "Para a sua própria senha, use Minha conta." };
   const u = await prisma.usuario.findUnique({ where: { id: String(id).slice(0, 40) } });
   if (!u) return { ok: false, mensagem: "Usuário não encontrado." };
-  const senha = randomBytes(9).toString("base64url");
+  const senha = gerarSenha();
   await prisma.usuario.update({ where: { id: u.id }, data: { senhaHash: await bcrypt.hash(senha, 10), sessaoVersao: { increment: 1 } } });
+  // Libera o login caso a pessoa tenha sido bloqueada por tentativas erradas
+  await prisma.tentativaLogin.deleteMany({ where: { chave: `email:${u.email}` } });
   return { ok: true, mensagem: `Senha provisória de ${u.nome}:`, senha };
 }

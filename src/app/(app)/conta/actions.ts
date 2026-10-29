@@ -3,13 +3,13 @@
 import bcrypt from "bcryptjs";
 import { exigirSessao } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import type { Resultado } from "@/lib/acoes";
+import { limparSenha, type Resultado } from "@/lib/acoes";
 
 export async function trocarSenha(_: Resultado, form: FormData): Promise<Resultado> {
   const session = await exigirSessao();
-  const atual = String(form.get("atual") ?? "").trim().slice(0, 128);
-  const nova = String(form.get("nova") ?? "").trim();
-  const confirmacao = String(form.get("confirmacao") ?? "").trim();
+  const atual = limparSenha(form.get("atual")).slice(0, 128);
+  const nova = limparSenha(form.get("nova"));
+  const confirmacao = limparSenha(form.get("confirmacao"));
   if (nova.length < 8 || nova.length > 128) return { ok: false, mensagem: "A nova senha deve ter entre 8 e 128 caracteres." };
   if (nova !== confirmacao) return { ok: false, mensagem: "A confirmação não confere com a nova senha." };
   if (nova === atual) return { ok: false, mensagem: "A nova senha deve ser diferente da atual." };

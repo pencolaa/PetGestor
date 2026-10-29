@@ -1,6 +1,6 @@
 import { PrismaClient, type Especie, type Sexo, type StatusAgendamento } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "node:crypto";
+import { gerarSenha } from "../src/lib/senhas";
 import { writeFileSync } from "node:fs";
 import { dataHora, hojeISO, somarDias } from "../src/lib/datas";
 
@@ -13,7 +13,7 @@ function rand() {
   return semente / 4294967296;
 }
 function senhaAleatoria() {
-  return randomBytes(12).toString("base64url");
+  return gerarSenha();
 }
 function escolher<T>(lista: T[]): T {
   return lista[Math.floor(rand() * lista.length)];

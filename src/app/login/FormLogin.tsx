@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { CampoSenha } from "@/components/CampoSenha";
 
 function Form() {
   const router = useRouter();
@@ -36,11 +37,11 @@ function Form() {
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
         <label className="label" htmlFor="email">E-mail</label>
-        <input id="email" name="email" type="email" required autoComplete="email" className="input" />
+        <input id="email" name="email" type="email" required autoComplete="username" autoCapitalize="none" spellCheck={false} className="input" />
       </div>
       <div>
         <label className="label" htmlFor="senha">Senha</label>
-        <input id="senha" name="senha" type="password" required autoComplete="current-password" className="input" />
+        <CampoSenha id="senha" name="senha" required autoComplete="current-password" />
       </div>
       {/* Campo-isca contra robôs: invisível para pessoas */}
       <input type="text" name="site" tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 opacity-0" />
