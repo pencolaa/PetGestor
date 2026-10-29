@@ -66,7 +66,7 @@ export async function horariosLivres(profissionalId: string, dia: string, duraca
 
 export type ResultadoAgendamento = (Resultado & { whatsapp?: string }) | null;
 
-type NovoCliente = { tutorNome: string; telefone: string; petNome: string; especie: Especie; sexo: Sexo };
+type NovoCliente = { tutorNome: string; telefone: string; petNome: string; raca: string | null; especie: Especie; sexo: Sexo };
 
 /** Lê e valida o "cliente novo" do formulário de agendamento */
 function lerNovoCliente(form: FormData): NovoCliente | string {
@@ -80,7 +80,7 @@ function lerNovoCliente(form: FormData): NovoCliente | string {
   if (!petNome) return "Informe o nome do pet.";
   if (!["CAO", "GATO", "OUTRO"].includes(especie)) return "Espécie inválida.";
   if (!["MACHO", "FEMEA"].includes(sexo)) return "Sexo inválido.";
-  return { tutorNome, telefone, petNome, especie, sexo };
+  return { tutorNome, telefone, petNome, raca: textoOuNull(form, "petRaca", 60), especie, sexo };
 }
 
 /** Usa o tutor com o mesmo telefone (e o pet com o mesmo nome) se já existirem; senão cria */
@@ -90,7 +90,7 @@ async function obterOuCriarPet(tx: Prisma.TransactionClient, c: NovoCliente): Pr
     (await tx.tutor.create({ data: { nome: c.tutorNome, telefone: c.telefone } }));
   const pet =
     (await tx.pet.findFirst({ where: { tutorId: tutor.id, nome: { equals: c.petNome, mode: "insensitive" } } })) ??
-    (await tx.pet.create({ data: { nome: c.petNome, especie: c.especie, sexo: c.sexo, tutorId: tutor.id } }));
+    (await tx.pet.create({ data: { nome: c.petNome, raca: c.raca, especie: c.especie, sexo: c.sexo, tutorId: tutor.id } }));
   return pet.id;
 }
 

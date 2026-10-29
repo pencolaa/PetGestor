@@ -127,7 +127,11 @@ function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: O
               <label className="label" htmlFor="nc-pet">Nome do pet *</label>
               <input id="nc-pet" name="petNome" className="input" required maxLength={60} />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label" htmlFor="nc-raca">Raça</label>
+              <input id="nc-raca" name="petRaca" className="input" maxLength={60} placeholder="Ex.: Shih-tzu, SRD..." />
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:col-span-2">
               <div>
                 <label className="label" htmlFor="nc-especie">Espécie</label>
                 <select id="nc-especie" name="petEspecie" className="input" defaultValue="CAO">
