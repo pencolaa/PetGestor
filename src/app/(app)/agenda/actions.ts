@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { dataValida, texto, textoOuNull, type Resultado } from "@/lib/acoes";
 import { calcularHorariosLivres, obterExpediente, temConflito } from "@/lib/agenda";
 import { dataHora, diaISO, formatarData, hojeISO, horaLocal } from "@/lib/datas";
-import { apenasDigitos, parseMoeda } from "@/lib/formato";
+import { apenasDigitos, atende, parseMoeda } from "@/lib/formato";
 import { obterConfiguracao } from "@/lib/configuracao";
 import { mensagens, provedorWhatsApp } from "@/lib/whatsapp";
 
@@ -89,7 +89,7 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
     prisma.profissional.findUnique({ where: { id: profissionalId } }),
   ]);
   if (!pet || !servico?.ativo || !profissional?.ativo) return { ok: false, mensagem: "Pet, serviço ou profissional inválido." };
-  if (!atende(profissional.tipo, servico.tipo)) {
+  if (!atende(profissional.tipos, servico.tipo)) {
     return { ok: false, mensagem: `${profissional.nome} não realiza esse tipo de serviço.` };
   }
 
@@ -163,11 +163,6 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
   return { ok: true, mensagem: "Agendamento criado.", whatsapp };
 }
 
-/** Profissional pode atender o serviço? (tosadores também dão banho) */
-function atende(tipoProfissional: string, tipoServico: string) {
-  return tipoProfissional === tipoServico || (tipoServico === "BANHO" && tipoProfissional === "TOSA");
-}
-
 export async function remarcarAgendamento(_: Resultado, form: FormData): Promise<Resultado> {
   await exigirSessao();
   const id = texto(form, "id", 40);
@@ -183,7 +178,7 @@ export async function remarcarAgendamento(_: Resultado, form: FormData): Promise
   if (!dataValida(dia) || !expediente.horarios.includes(hora)) return { ok: false, mensagem: "Escolha uma data e um horário válidos." };
   const profissional = await prisma.profissional.findUnique({ where: { id: profissionalId } });
   if (!profissional?.ativo) return { ok: false, mensagem: "Profissional inválido." };
-  if (!atende(profissional.tipo, atual.servico.tipo)) return { ok: false, mensagem: `${profissional.nome} não realiza esse tipo de serviço.` };
+  if (!atende(profissional.tipos, atual.servico.tipo)) return { ok: false, mensagem: `${profissional.nome} não realiza esse tipo de serviço.` };
 
   const inicio = dataHora(dia, hora);
   const fim = new Date(inicio.getTime() + atual.servico.duracaoMin * 60000);

@@ -2,7 +2,7 @@ import { Pencil, Plus } from "lucide-react";
 import { exigirAdmin } from "@/lib/auth";
 import { obterConfiguracao } from "@/lib/configuracao";
 import { prisma } from "@/lib/prisma";
-import { formatarMoeda, ROTULO_TIPO_SERVICO } from "@/lib/formato";
+import { formatarMoeda, rotuloEspecialidades, ROTULO_TIPO_SERVICO } from "@/lib/formato";
 import { Cabecalho, CardTitulo, Pill, Vazio } from "@/components/ui";
 import { Modal } from "@/components/Modal";
 import { BotaoRedefinirSenha, FormConfiguracao, FormProfissional, FormServico, FormUsuario } from "./Forms";
@@ -20,7 +20,7 @@ export default async function ConfiguracoesPage() {
     obterConfiguracao(),
     prisma.usuario.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true, email: true, perfil: true, ativo: true } }),
     prisma.servico.findMany({ orderBy: [{ ativo: "desc" }, { tipo: "asc" }, { nome: "asc" }] }),
-    prisma.profissional.findMany({ orderBy: [{ ativo: "desc" }, { tipo: "asc" }, { nome: "asc" }] }),
+    prisma.profissional.findMany({ orderBy: [{ ativo: "desc" }, { nome: "asc" }] }),
   ]);
 
   const editar = <Pencil size={14} />;
@@ -86,11 +86,11 @@ export default async function ConfiguracoesPage() {
                 {profissionais.map((p) => (
                   <li key={p.id} className={`flex items-center justify-between gap-3 px-5 py-3 text-sm ${p.ativo ? "" : "opacity-50"}`}>
                     <span>
-                      <span className="font-medium">{p.nome}</span> <span className="text-suave">· {ROTULO_TIPO_SERVICO[p.tipo]}</span>
+                      <span className="font-medium">{p.nome}</span> <span className="text-suave">· {rotuloEspecialidades(p.tipos)}</span>
                       {!p.ativo && <span className="ml-2"><Pill cor="cinza">Inativo</Pill></span>}
                     </span>
                     <Modal titulo="Editar profissional" gatilho={editar} classeGatilho={classeEditar}>
-                      <FormProfissional profissional={{ id: p.id, nome: p.nome, tipo: p.tipo, ativo: p.ativo }} />
+                      <FormProfissional profissional={{ id: p.id, nome: p.nome, tipos: p.tipos, ativo: p.ativo }} />
                     </Modal>
                   </li>
                 ))}

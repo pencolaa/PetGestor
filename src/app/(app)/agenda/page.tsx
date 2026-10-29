@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { obterExpediente, OCUPA_AGENDA } from "@/lib/agenda";
 import { diaISO, diaDaSemana, fimDoDia, formatarData, hojeISO, horaLocal, inicioDaSemana, inicioDoDia, somarDias } from "@/lib/datas";
-import { ROTULO_TIPO_SERVICO } from "@/lib/formato";
+import { rotuloEspecialidades } from "@/lib/formato";
 import { Cabecalho, Vazio } from "@/components/ui";
 import { exigirSessao } from "@/lib/auth";
 import { BlocoAgendamento, LinhaAgendamento, type AgendamentoBloco, type ProfissionalAgenda } from "./BlocoAgendamento";
@@ -36,7 +36,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const dias = Array.from({ length: qtdDias }, (_, i) => somarDias(inicio, i));
 
   const [profissionais, servicos, agendamentos, petInicial] = await Promise.all([
-    prisma.profissional.findMany({ where: { ativo: true }, orderBy: [{ tipo: "asc" }, { nome: "asc" }] }),
+    prisma.profissional.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
     prisma.servico.findMany({ where: { ativo: true }, orderBy: [{ tipo: "asc" }, { nome: "asc" }] }),
     prisma.agendamento.findMany({
       where: { ...(visao === "semana" ? {} : OCUPA_AGENDA), inicio: { gte: inicioDoDia(dias[0]), lt: fimDoDia(dias[dias.length - 1]) } },
@@ -46,7 +46,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
     sp.pet ? obterPet(sp.pet) : null,
   ]);
 
-  const profsAgenda: ProfissionalAgenda[] = profissionais.map((p) => ({ id: p.id, nome: p.nome, tipo: p.tipo }));
+  const profsAgenda: ProfissionalAgenda[] = profissionais.map((p) => ({ id: p.id, nome: p.nome, tipos: p.tipos }));
   const blocos: (AgendamentoBloco & { slot: number; slots: number })[] = agendamentos.map((a) => {
     const hora = horaLocal(a.inicio);
     const slot = HORARIOS.findIndex((h) => h >= hora);
@@ -86,7 +86,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       <Cabecalho titulo="Agenda" subtitulo={<span className="inline-block first-letter:uppercase">{titulo}</span>}>
         <NovoAgendamento
           servicos={servicos.map((s) => ({ id: s.id, nome: s.nome, tipo: s.tipo, preco: s.preco, duracaoMin: s.duracaoMin }))}
-          profissionais={profissionais.map((p) => ({ id: p.id, nome: p.nome, tipo: p.tipo }))}
+          profissionais={profsAgenda}
           diaInicial={dia < hoje ? hoje : dia}
           hoje={hoje}
           petInicial={petInicial}
@@ -144,7 +144,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
             {profissionais.map((p, i) => (
               <div key={p.id} className="border-b border-l border-borda px-3 py-3" style={{ gridColumn: i + 2, gridRow: 1 }}>
                 <p className="font-semibold">{p.nome}</p>
-                <p className="text-xs text-suave">{ROTULO_TIPO_SERVICO[p.tipo]}</p>
+                <p className="text-xs text-suave">{rotuloEspecialidades(p.tipos)}</p>
               </div>
             ))}
             {HORARIOS.map((h, r) => (

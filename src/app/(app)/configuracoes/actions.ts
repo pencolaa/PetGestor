@@ -70,10 +70,10 @@ export async function salvarProfissional(_: Resultado, form: FormData): Promise<
   await exigirAdmin();
   const id = texto(form, "id", 40);
   const nome = texto(form, "nome", 80);
-  const tipo = texto(form, "tipo", 15) as TipoServico;
+  const tipos = TIPOS.filter((t) => form.getAll("tipos").includes(t));
   if (!nome) return { ok: false, mensagem: "Informe o nome do profissional." };
-  if (!TIPOS.includes(tipo)) return { ok: false, mensagem: "Especialidade inválida." };
-  const dados = { nome, tipo, ativo: id ? form.get("ativo") === "on" : true };
+  if (tipos.length === 0) return { ok: false, mensagem: "Marque pelo menos uma especialidade." };
+  const dados = { nome, tipos, ativo: id ? form.get("ativo") === "on" : true };
   if (id) {
     const r = await prisma.profissional.updateMany({ where: { id }, data: dados });
     if (r.count === 0) return { ok: false, mensagem: "Profissional não encontrado." };

@@ -147,7 +147,7 @@ model Servico {
 model Profissional {
   id           String      @id @default(cuid())
   nome         String
-  tipo         TipoServico
+  tipos        TipoServico[]
   ativo        Boolean     @default(true)
   agendamentos Agendamento[]
 }

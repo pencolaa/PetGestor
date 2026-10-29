@@ -6,11 +6,11 @@ import { CalendarPlus, MessageCircle, Search, X } from "lucide-react";
 import type { TipoServico } from "@prisma/client";
 import { Modal } from "@/components/Modal";
 import { Mensagem } from "@/components/Mensagem";
-import { centavosParaInput, formatarTelefone } from "@/lib/formato";
+import { atende, centavosParaInput, formatarTelefone } from "@/lib/formato";
 import { buscarPets, criarAgendamento, horariosLivres, type PetBusca } from "./actions";
 
 type Servico = { id: string; nome: string; tipo: TipoServico; preco: number; duracaoMin: number };
-type Profissional = { id: string; nome: string; tipo: TipoServico };
+type Profissional = { id: string; nome: string; tipos: string[] };
 
 type Props = {
   servicos: Servico[];
@@ -37,12 +37,6 @@ export function NovoAgendamento({ abertoInicial, ...props }: Props) {
   );
 }
 
-/** Profissional pode atender o serviço? (tosadores também dão banho) */
-function atende(p: Profissional, s: Servico | undefined) {
-  if (!s) return true;
-  return p.tipo === s.tipo || (s.tipo === "BANHO" && p.tipo === "TOSA");
-}
-
 function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: Omit<Props, "abertoInicial">) {
   const [estado, acao, enviando] = useActionState(criarAgendamento, null);
   const [pet, setPet] = useState<PetBusca | null>(petInicial);
@@ -57,7 +51,7 @@ function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: O
   const [usarPacote, setUsarPacote] = useState(false);
 
   const servico = servicos.find((s) => s.id === servicoId);
-  const profissionaisAptos = useMemo(() => profissionais.filter((p) => atende(p, servico)), [profissionais, servico]);
+  const profissionaisAptos = useMemo(() => profissionais.filter((p) => !servico || atende(p.tipos, servico.tipo)), [profissionais, servico]);
   const pacote = pet?.pacotes.find((p) => p.servicoId === servicoId);
 
   // Busca de pet/tutor com debounce

@@ -33,6 +33,17 @@ export function formatarTelefone(tel: string): string {
 export const ROTULO_ESPECIE = { CAO: "Cão", GATO: "Gato", OUTRO: "Outro" } as const;
 export const ROTULO_SEXO = { MACHO: "Macho", FEMEA: "Fêmea" } as const;
 export const ROTULO_TIPO_SERVICO = { BANHO: "Banho", TOSA: "Tosa", VETERINARIA: "Veterinária" } as const;
+
+/** "Banho e Tosa", na ordem fixa das especialidades */
+export function rotuloEspecialidades(tipos: readonly string[]): string {
+  const nomes = (Object.keys(ROTULO_TIPO_SERVICO) as (keyof typeof ROTULO_TIPO_SERVICO)[]).filter((t) => tipos.includes(t)).map((t) => ROTULO_TIPO_SERVICO[t]);
+  return nomes.length > 1 ? `${nomes.slice(0, -1).join(", ")} e ${nomes.at(-1)}` : (nomes[0] ?? "");
+}
+
+/** O profissional atende esse tipo de serviço? */
+export function atende(tiposProfissional: readonly string[], tipoServico: string): boolean {
+  return tiposProfissional.includes(tipoServico);
+}
 export const ROTULO_STATUS = {
   AGUARDANDO: "Aguardando",
   CONFIRMADO: "Confirmado",

@@ -127,7 +127,7 @@ export function FormServico({ servico }: { servico?: Servico }) {
   );
 }
 
-type Profissional = { id: string; nome: string; tipo: string; ativo: boolean };
+type Profissional = { id: string; nome: string; tipos: string[]; ativo: boolean };
 
 export function FormProfissional({ profissional }: { profissional?: Profissional }) {
   const [estado, acao, pendente] = useActionState(salvarProfissional, null);
@@ -139,13 +139,18 @@ export function FormProfissional({ profissional }: { profissional?: Profissional
         <label className="label" htmlFor="pf-nome">Nome *</label>
         <input id="pf-nome" name="nome" defaultValue={profissional?.nome} className="input" required maxLength={80} />
       </div>
-      <div>
-        <label className="label" htmlFor="pf-tipo">Especialidade *</label>
-        <select id="pf-tipo" name="tipo" defaultValue={profissional?.tipo ?? "BANHO"} className="input">
-          {Object.entries(ROTULO_TIPO_SERVICO).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
-        </select>
-      </div>
-      <p className="text-xs text-suave sm:col-span-2">Profissionais de tosa também podem receber agendamentos de banho.</p>
+      <fieldset>
+        <legend className="label">Especialidades *</legend>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(ROTULO_TIPO_SERVICO).map(([v, r]) => (
+            <label key={v} className="flex cursor-pointer items-center gap-2 rounded-lg border border-borda px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary-soft">
+              <input type="checkbox" name="tipos" value={v} defaultChecked={profissional ? profissional.tipos.includes(v) : v === "BANHO"} className="h-4 w-4 accent-[var(--cor-principal)]" />
+              {r}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <p className="text-xs text-suave sm:col-span-2">Marque tudo o que a pessoa faz: ela só aparece para agendar os serviços dessas especialidades.</p>
       {profissional && (
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" name="ativo" defaultChecked={profissional.ativo} className="h-4 w-4 accent-[var(--cor-principal)]" /> Ativo (aparece como coluna na agenda)

@@ -72,10 +72,10 @@ async function main() {
   }
 
   const [ana, bruno, carla, rafael] = await Promise.all([
-    prisma.profissional.create({ data: { nome: "Ana", tipo: "BANHO" } }),
-    prisma.profissional.create({ data: { nome: "Bruno", tipo: "BANHO" } }),
-    prisma.profissional.create({ data: { nome: "Carla", tipo: "TOSA" } }),
-    prisma.profissional.create({ data: { nome: "Dr. Rafael", tipo: "VETERINARIA" } }),
+    prisma.profissional.create({ data: { nome: "Ana", tipos: ["BANHO"] } }),
+    prisma.profissional.create({ data: { nome: "Bruno", tipos: ["BANHO", "TOSA"] } }),
+    prisma.profissional.create({ data: { nome: "Carla", tipos: ["BANHO", "TOSA"] } }),
+    prisma.profissional.create({ data: { nome: "Dr. Rafael", tipos: ["VETERINARIA"] } }),
   ]);
 
   const s = {

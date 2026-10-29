@@ -6,7 +6,7 @@ import type { StatusAgendamento } from "@prisma/client";
 import { CalendarClock, MessageCircle } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { StatusPill } from "@/components/ui";
-import { formatarMoeda, formatarTelefone, ROTULO_STATUS } from "@/lib/formato";
+import { atende, formatarMoeda, formatarTelefone, ROTULO_STATUS } from "@/lib/formato";
 import { Mensagem } from "@/components/Mensagem";
 import { alterarStatus, horariosLivres, linkAvisoAgendamento, remarcarAgendamento } from "./actions";
 
@@ -31,7 +31,7 @@ export type AgendamentoBloco = {
   tipoServico: string;
 };
 
-export type ProfissionalAgenda = { id: string; nome: string; tipo: string };
+export type ProfissionalAgenda = { id: string; nome: string; tipos: string[] };
 
 type PropsAg = { ag: AgendamentoBloco; profissionais: ProfissionalAgenda[]; hoje: string };
 
@@ -184,14 +184,9 @@ function Detalhes({ ag, profissionais, hoje }: PropsAg) {
   );
 }
 
-/** Profissional pode atender o serviço? (tosadores também dão banho) */
-function atende(tipoProfissional: string, tipoServico: string) {
-  return tipoProfissional === tipoServico || (tipoServico === "BANHO" && tipoProfissional === "TOSA");
-}
-
 function FormRemarcar({ ag, profissionais, hoje, aoConcluir }: PropsAg & { aoConcluir: () => void }) {
   const [estado, acao, enviando] = useActionState(remarcarAgendamento, null);
-  const aptos = profissionais.filter((p) => atende(p.tipo, ag.tipoServico));
+  const aptos = profissionais.filter((p) => atende(p.tipos, ag.tipoServico));
   const [data, setData] = useState(ag.dia < hoje ? hoje : ag.dia);
   const [profissionalId, setProfissionalId] = useState(aptos.some((p) => p.id === ag.profissionalId) ? ag.profissionalId : aptos[0]?.id ?? "");
   const [horarios, setHorarios] = useState<string[] | null>(null);
