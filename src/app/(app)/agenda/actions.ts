@@ -4,11 +4,12 @@ import type { Especie, Prisma, Sexo, StatusAgendamento } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirSessao } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { dataValida, texto, textoOuNull, type Resultado } from "@/lib/acoes";
+import { dataValida, inteiro, texto, textoOuNull, type Resultado } from "@/lib/acoes";
 import { calcularHorariosLivres, obterExpediente, temConflito } from "@/lib/agenda";
 import { dataHora, diaISO, formatarData, hojeISO, horaLocal } from "@/lib/datas";
 import { apenasDigitos, atende, parseMoeda } from "@/lib/formato";
 import { obterConfiguracao } from "@/lib/configuracao";
+import { gerarHorariosFixos, SEMANAS_A_FRENTE } from "@/lib/horariosFixos";
 import { mensagens, provedorWhatsApp } from "@/lib/whatsapp";
 
 export type PetBusca = {
@@ -105,6 +106,8 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
   const hora = texto(form, "hora", 5);
   const usarPacote = form.get("usarPacote") === "on";
   const confirmarWhatsapp = form.get("confirmarWhatsapp") === "on";
+  const fixo = form.get("horarioFixo") === "on";
+  const intervaloSemanas = inteiro(texto(form, "intervaloSemanas", 2), 1, 4) ?? 1;
 
   if (!petId && !novoCliente) return { ok: false, mensagem: "Selecione o pet ou cadastre um cliente novo." };
   if (!servicoId || !profissionalId) return { ok: false, mensagem: "Selecione o serviço e o profissional." };
@@ -140,6 +143,7 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
     pacoteId = pacote.id;
   }
 
+  let fixos: { criados: number; pulados: string[] } | null = null;
   try {
     await prisma.$transaction(async (tx) => {
       // Trava os agendamentos do profissional para evitar dois cadastros simultâneos no mesmo horário
@@ -157,9 +161,18 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
         const r = await tx.pacote.updateMany({ where: { id: pacoteId, usados: { lt: pacote.total } }, data: { usados: { increment: 1 } } });
         if (r.count === 0) throw new Error("PACOTE_ESGOTADO");
       }
+      // Cliente fixo: guarda a regra e já marca as próximas semanas na mesma transação
+      const horarioFixo = fixo
+        ? await tx.horarioFixo.create({
+            data: {
+              petId, servicoId, profissionalId, hora, intervaloSemanas, primeiroDia: dia, geradoAte: dia,
+              valorEstimado: valorInformado || servico.preco, observacoes: textoOuNull(form, "observacoes", 500),
+            },
+          })
+        : null;
       await tx.agendamento.create({
         data: {
-          petId, servicoId, profissionalId, inicio, fim,
+          petId, servicoId, profissionalId, inicio, fim, horarioFixoId: horarioFixo?.id,
           status: "AGUARDANDO",
           valorEstimado: pacoteId ? 0 : valorInformado || servico.preco,
           observacoes: textoOuNull(form, "observacoes", 500),
@@ -168,6 +181,7 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
           pago: pacoteId !== null,
         },
       });
+      if (horarioFixo) fixos = await gerarHorariosFixos(horarioFixo.id, tx);
     });
   } catch (e) {
     if (e instanceof Error && e.message === "PACOTE_ESGOTADO") return { ok: false, mensagem: "O pacote deste pet acabou de ser esgotado." };
@@ -196,7 +210,15 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
     );
     if (envio.modo === "link") whatsapp = envio.url;
   }
-  return { ok: true, mensagem: novoCliente ? "Agendamento criado e cliente cadastrado." : "Agendamento criado.", whatsapp };
+  let mensagem = novoCliente ? "Agendamento criado e cliente cadastrado." : "Agendamento criado.";
+  const resumoFixo = fixos as { criados: number; pulados: string[] } | null;
+  if (resumoFixo) {
+    mensagem += ` Horário fixo: mais ${resumoFixo.criados} ${resumoFixo.criados === 1 ? "data marcada" : "datas marcadas"} nas próximas ${SEMANAS_A_FRENTE} semanas.`;
+    if (resumoFixo.pulados.length) {
+      mensagem += ` Puladas (profissional ocupado): ${resumoFixo.pulados.map((d) => formatarData(d, { day: "2-digit", month: "2-digit" })).join(", ")}.`;
+    }
+  }
+  return { ok: true, mensagem, whatsapp };
 }
 
 export async function remarcarAgendamento(_: Resultado, form: FormData): Promise<Resultado> {
@@ -287,4 +309,27 @@ export async function linkAvisoAgendamento(id: string, tipo: "confirmacao" | "pr
         });
   const envio = await provedorWhatsApp().enviar(ag.pet.tutor.telefone, msg);
   return envio.modo === "link" ? envio.url : null;
+}
+
+/** Encerra o horário fixo e cancela as datas futuras que ainda não aconteceram */
+export async function encerrarHorarioFixo(id: string): Promise<Resultado> {
+  await exigirSessao();
+  const hf = await prisma.horarioFixo.findUnique({ where: { id: String(id).slice(0, 40) } });
+  if (!hf) return { ok: false, mensagem: "Horário fixo não encontrado." };
+  const count = await prisma.$transaction(async (tx) => {
+    await tx.horarioFixo.update({ where: { id: hf.id }, data: { ativo: false } });
+    const futuras = await tx.agendamento.findMany({
+      where: { horarioFixoId: hf.id, inicio: { gt: new Date() }, status: { in: ["AGUARDANDO", "CONFIRMADO"] } },
+      select: { id: true, pacoteId: true },
+    });
+    await tx.agendamento.updateMany({ where: { id: { in: futuras.map((a) => a.id) } }, data: { status: "CANCELADO" } });
+    // Como no cancelamento avulso, devolve ao pacote os banhos que seriam usados
+    for (const a of futuras) {
+      if (a.pacoteId) await tx.pacote.update({ where: { id: a.pacoteId }, data: { usados: { decrement: 1 } } });
+    }
+    return futuras.length;
+  });
+  revalidatePath("/agenda");
+  revalidatePath(`/clientes/pets/${hf.petId}`);
+  return { ok: true, mensagem: `Horário fixo encerrado. ${count} ${count === 1 ? "data futura cancelada" : "datas futuras canceladas"}.` };
 }

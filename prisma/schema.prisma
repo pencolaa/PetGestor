@@ -63,203 +63,232 @@ enum FormaPagamento {
 }
 
 model Configuracao {
-  id            Int      @id @default(1)
-  nomePetShop   String
-  corPrincipal  String   @default("#0F766E")
-  logoUrl       String?
-  telefone      String?
-  endereco      String?
-  abertura      String   @default("08:00") // horário de funcionamento da agenda (HH:MM)
-  fechamento    String   @default("18:00")
-  atualizadoEm  DateTime @updatedAt
+  id           Int      @id @default(1)
+  nomePetShop  String
+  corPrincipal String   @default("#0F766E")
+  logoUrl      String?
+  telefone     String?
+  endereco     String?
+  abertura     String   @default("08:00") // horário de funcionamento da agenda (HH:MM)
+  fechamento   String   @default("18:00")
+  atualizadoEm DateTime @updatedAt
 }
 
 model Usuario {
-  id          String   @id @default(cuid())
-  nome        String
-  email       String   @unique
-  senhaHash   String
-  perfil      Perfil   @default(ATENDENTE)
-  ativo       Boolean  @default(true)
-  sessaoVersao Int     @default(0) // incrementa ao trocar a senha, derrubando sessões antigas
-  criadoEm    DateTime @default(now())
-  vendas      Venda[]
+  id            String                @id @default(cuid())
+  nome          String
+  email         String                @unique
+  senhaHash     String
+  perfil        Perfil                @default(ATENDENTE)
+  ativo         Boolean               @default(true)
+  sessaoVersao  Int                   @default(0) // incrementa ao trocar a senha, derrubando sessões antigas
+  criadoEm      DateTime              @default(now())
+  vendas        Venda[]
   movimentacoes MovimentacaoEstoque[]
 }
 
 model Tutor {
-  id         String   @id @default(cuid())
-  nome       String
-  telefone   String
-  email      String?
-  cpf        String?
-  endereco   String?
-  criadoEm   DateTime @default(now())
-  pets       Pet[]
-  vendas     Venda[]
+  id       String   @id @default(cuid())
+  nome     String
+  telefone String
+  email    String?
+  cpf      String?
+  endereco String?
+  criadoEm DateTime @default(now())
+  pets     Pet[]
+  vendas   Venda[]
 
   @@index([nome])
   @@index([telefone])
 }
 
 model Pet {
-  id              String    @id @default(cuid())
-  nome            String
-  especie         Especie
-  raca            String?
-  sexo            Sexo
-  dataNascimento  DateTime?
-  peso            Float?
-  observacoes     String?   // cuidados: alergias, comportamento, etc.
-  tutorId         String
-  tutor           Tutor     @relation(fields: [tutorId], references: [id], onDelete: Cascade)
-  criadoEm        DateTime  @default(now())
-  vacinas         Vacina[]
-  pacotes         Pacote[]
-  agendamentos    Agendamento[]
+  id             String        @id @default(cuid())
+  nome           String
+  especie        Especie
+  raca           String?
+  sexo           Sexo
+  dataNascimento DateTime?
+  peso           Float?
+  observacoes    String? // cuidados: alergias, comportamento, etc.
+  tutorId        String
+  tutor          Tutor         @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  criadoEm       DateTime      @default(now())
+  vacinas        Vacina[]
+  pacotes        Pacote[]
+  agendamentos   Agendamento[]
+  horariosFixos  HorarioFixo[]
 
   @@index([nome])
 }
 
 model Vacina {
-  id           String    @id @default(cuid())
-  petId        String
-  pet          Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
-  nome         String
-  aplicadaEm   DateTime
-  proximaDose  DateTime?
-  lote         String?
-  criadoEm     DateTime  @default(now())
+  id          String    @id @default(cuid())
+  petId       String
+  pet         Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
+  nome        String
+  aplicadaEm  DateTime
+  proximaDose DateTime?
+  lote        String?
+  criadoEm    DateTime  @default(now())
 }
 
 model Servico {
-  id           String      @id @default(cuid())
-  nome         String
-  tipo         TipoServico
-  duracaoMin   Int         @default(60)
-  preco        Int
-  ativo        Boolean     @default(true)
-  agendamentos Agendamento[]
-  pacotes      Pacote[]
-  itensVenda   ItemVenda[]
+  id            String        @id @default(cuid())
+  nome          String
+  tipo          TipoServico
+  duracaoMin    Int           @default(60)
+  preco         Int
+  ativo         Boolean       @default(true)
+  agendamentos  Agendamento[]
+  pacotes       Pacote[]
+  itensVenda    ItemVenda[]
+  horariosFixos HorarioFixo[]
 }
 
 model Profissional {
-  id           String      @id @default(cuid())
-  nome         String
-  tipos        TipoServico[]
-  ativo        Boolean     @default(true)
-  agendamentos Agendamento[]
+  id            String        @id @default(cuid())
+  nome          String
+  tipos         TipoServico[]
+  ativo         Boolean       @default(true)
+  agendamentos  Agendamento[]
+  horariosFixos HorarioFixo[]
 }
 
 model Agendamento {
-  id                 String            @id @default(cuid())
-  petId              String
-  pet                Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
-  servicoId          String
-  servico            Servico           @relation(fields: [servicoId], references: [id])
-  profissionalId     String
-  profissional       Profissional      @relation(fields: [profissionalId], references: [id])
-  inicio             DateTime
-  fim                DateTime
-  status             StatusAgendamento @default(AGUARDANDO)
-  valorEstimado      Int
-  observacoes        String?
-  confirmarWhatsapp  Boolean           @default(false)
-  pago               Boolean           @default(false)
-  pacoteId           String?
-  pacote             Pacote?           @relation(fields: [pacoteId], references: [id])
-  criadoEm           DateTime          @default(now())
-  itensVenda         ItemVenda[]
+  id                String            @id @default(cuid())
+  petId             String
+  pet               Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
+  servicoId         String
+  servico           Servico           @relation(fields: [servicoId], references: [id])
+  profissionalId    String
+  profissional      Profissional      @relation(fields: [profissionalId], references: [id])
+  inicio            DateTime
+  fim               DateTime
+  status            StatusAgendamento @default(AGUARDANDO)
+  valorEstimado     Int
+  observacoes       String?
+  confirmarWhatsapp Boolean           @default(false)
+  pago              Boolean           @default(false)
+  pacoteId          String?
+  pacote            Pacote?           @relation(fields: [pacoteId], references: [id])
+  horarioFixoId     String?
+  horarioFixo       HorarioFixo?      @relation(fields: [horarioFixoId], references: [id], onDelete: SetNull)
+  criadoEm          DateTime          @default(now())
+  itensVenda        ItemVenda[]
 
   @@index([profissionalId, inicio])
   @@index([inicio])
+  @@index([horarioFixoId])
+}
+
+/// Cliente fixo: o mesmo serviço, com o mesmo profissional, no mesmo dia da semana e horário.
+/// Os agendamentos são criados automaticamente algumas semanas à frente (ver src/lib/horariosFixos.ts).
+model HorarioFixo {
+  id               String        @id @default(cuid())
+  petId            String
+  pet              Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  servicoId        String
+  servico          Servico       @relation(fields: [servicoId], references: [id])
+  profissionalId   String
+  profissional     Profissional  @relation(fields: [profissionalId], references: [id])
+  hora             String // "HH:MM"
+  intervaloSemanas Int           @default(1) // 1 = toda semana, 2 = a cada 2 semanas
+  primeiroDia      String // "YYYY-MM-DD": define o dia da semana e o ritmo quinzenal
+  geradoAte        String // último dia já verificado/criado na agenda
+  valorEstimado    Int
+  observacoes      String?
+  ativo            Boolean       @default(true)
+  criadoEm         DateTime      @default(now())
+  agendamentos     Agendamento[]
+
+  @@index([ativo, geradoAte])
 }
 
 model Pacote {
-  id           String    @id @default(cuid())
+  id           String        @id @default(cuid())
   petId        String
-  pet          Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
+  pet          Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
   servicoId    String
-  servico      Servico   @relation(fields: [servicoId], references: [id])
+  servico      Servico       @relation(fields: [servicoId], references: [id])
   total        Int
-  usados       Int       @default(0)
+  usados       Int           @default(0)
   validade     DateTime
   valor        Int
-  criadoEm     DateTime  @default(now())
+  criadoEm     DateTime      @default(now())
   agendamentos Agendamento[]
 }
 
 model Produto {
-  id             String           @id @default(cuid())
-  nome           String
-  codigoBarras   String?          @unique
-  categoria      CategoriaProduto
-  preco          Int
-  custo          Int?
-  estoque        Int              @default(0)
-  estoqueMinimo  Int              @default(5)
-  ativo          Boolean          @default(true)
-  criadoEm       DateTime         @default(now())
-  movimentacoes  MovimentacaoEstoque[]
-  itensVenda     ItemVenda[]
+  id            String                @id @default(cuid())
+  nome          String
+  codigoBarras  String?               @unique
+  categoria     CategoriaProduto
+  preco         Int
+  custo         Int?
+  estoque       Int                   @default(0)
+  estoqueMinimo Int                   @default(5)
+  ativo         Boolean               @default(true)
+  criadoEm      DateTime              @default(now())
+  movimentacoes MovimentacaoEstoque[]
+  itensVenda    ItemVenda[]
 
   @@index([nome])
 }
 
 model MovimentacaoEstoque {
-  id             String           @id @default(cuid())
-  produtoId      String
-  produto        Produto          @relation(fields: [produtoId], references: [id])
-  tipo           TipoMovimentacao
-  quantidade     Int              // positiva para entrada, negativa para saída
-  custoUnitario  Int?
-  motivo         String?
-  vendaId        String?
-  venda          Venda?           @relation(fields: [vendaId], references: [id])
-  usuarioId      String?
-  usuario        Usuario?         @relation(fields: [usuarioId], references: [id])
-  criadoEm       DateTime         @default(now())
+  id            String           @id @default(cuid())
+  produtoId     String
+  produto       Produto          @relation(fields: [produtoId], references: [id])
+  tipo          TipoMovimentacao
+  quantidade    Int // positiva para entrada, negativa para saída
+  custoUnitario Int?
+  motivo        String?
+  vendaId       String?
+  venda         Venda?           @relation(fields: [vendaId], references: [id])
+  usuarioId     String?
+  usuario       Usuario?         @relation(fields: [usuarioId], references: [id])
+  criadoEm      DateTime         @default(now())
 }
 
 model Venda {
-  id              String         @id @default(cuid())
-  tutorId         String?
-  tutor           Tutor?         @relation(fields: [tutorId], references: [id])
-  usuarioId       String?
-  usuario         Usuario?       @relation(fields: [usuarioId], references: [id])
-  subtotal        Int
-  desconto        Int            @default(0)
-  total           Int
-  formaPagamento  FormaPagamento
-  criadoEm        DateTime       @default(now())
-  itens           ItemVenda[]
-  movimentacoes   MovimentacaoEstoque[]
+  id             String                @id @default(cuid())
+  tutorId        String?
+  tutor          Tutor?                @relation(fields: [tutorId], references: [id])
+  usuarioId      String?
+  usuario        Usuario?              @relation(fields: [usuarioId], references: [id])
+  subtotal       Int
+  desconto       Int                   @default(0)
+  total          Int
+  formaPagamento FormaPagamento
+  criadoEm       DateTime              @default(now())
+  itens          ItemVenda[]
+  movimentacoes  MovimentacaoEstoque[]
 
   @@index([criadoEm])
 }
 
 model ItemVenda {
-  id             String       @id @default(cuid())
-  vendaId        String
-  venda          Venda        @relation(fields: [vendaId], references: [id], onDelete: Cascade)
-  produtoId      String?
-  produto        Produto?     @relation(fields: [produtoId], references: [id])
-  servicoId      String?
-  servico        Servico?     @relation(fields: [servicoId], references: [id])
-  agendamentoId  String?
-  agendamento    Agendamento? @relation(fields: [agendamentoId], references: [id])
-  descricao      String
-  quantidade     Int
-  precoUnitario  Int
-  total          Int
+  id            String       @id @default(cuid())
+  vendaId       String
+  venda         Venda        @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  produtoId     String?
+  produto       Produto?     @relation(fields: [produtoId], references: [id])
+  servicoId     String?
+  servico       Servico?     @relation(fields: [servicoId], references: [id])
+  agendamentoId String?
+  agendamento   Agendamento? @relation(fields: [agendamentoId], references: [id])
+  descricao     String
+  quantidade    Int
+  precoUnitario Int
+  total         Int
 }
 
 /// Falhas de login recentes, para limitar tentativas por e-mail e por IP
 model TentativaLogin {
-  id        String   @id @default(cuid())
-  chave     String   // "email:<e-mail>" ou "ip:<endereço>"
-  criadoEm  DateTime @default(now())
+  id       String   @id @default(cuid())
+  chave    String // "email:<e-mail>" ou "ip:<endereço>"
+  criadoEm DateTime @default(now())
 
   @@index([chave, criadoEm])
 }

@@ -67,3 +67,6 @@ implemente `ProvedorWhatsApp` com `modo: "api"` e troque o retorno de `provedorW
   não perder dados; podem ser removidas numa migração futura.
 - Horário de funcionamento configurável em Configurações (blocos de 30 min).
 - Agendamentos podem ser remarcados (data, horário, profissional) com a mesma checagem de conflito.
+- **Horário fixo (cliente fixo):** ao agendar, dá para repetir toda semana ou a cada 2 semanas. A agenda
+  fica sempre preenchida 8 semanas à frente (as semanas novas são marcadas quando alguém abre a agenda);
+  datas com o profissional ocupado são puladas. Encerrar cancela as datas futuras e devolve banhos de pacote.

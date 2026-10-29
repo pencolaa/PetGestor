@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, MessageCircle, Search, UserPlus, X } from "lucide-react";
+import { CalendarPlus, MessageCircle, Repeat, Search, UserPlus, X } from "lucide-react";
 import type { TipoServico } from "@prisma/client";
 import { Modal } from "@/components/Modal";
 import { Mensagem } from "@/components/Mensagem";
@@ -37,6 +37,11 @@ export function NovoAgendamento({ abertoInicial, ...props }: Props) {
   );
 }
 
+const DIAS_SEMANA = ["domingos", "segundas", "terças", "quartas", "quintas", "sextas", "sábados"];
+function diaSemana(dia: string) {
+  return DIAS_SEMANA[new Date(`${dia}T12:00:00Z`).getUTCDay()];
+}
+
 function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: Omit<Props, "abertoInicial">) {
   const [estado, acao, enviando] = useActionState(criarAgendamento, null);
   const [pet, setPet] = useState<PetBusca | null>(petInicial);
@@ -51,6 +56,7 @@ function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: O
   const [horarios, setHorarios] = useState<string[] | null>(null);
   const [valor, setValor] = useState(centavosParaInput(servicos[0]?.preco ?? 0));
   const [usarPacote, setUsarPacote] = useState(false);
+  const [fixo, setFixo] = useState(false);
 
   const servico = servicos.find((s) => s.id === servicoId);
   const profissionaisAptos = useMemo(() => profissionais.filter((p) => !servico || atende(p.tipos, servico.tipo)), [profissionais, servico]);
@@ -236,6 +242,26 @@ function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: O
           </div>
         )}
         <input type="hidden" name="hora" value={hora} />
+      </div>
+
+      <div className="rounded-lg border border-borda p-3 sm:col-span-2">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" name="horarioFixo" checked={fixo} onChange={(e) => setFixo(e.target.checked)} className="h-4 w-4 accent-[var(--cor-principal)]" />
+          <Repeat size={15} className="text-primary" /> Horário fixo (cliente fixo)
+        </label>
+        {fixo && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-suave">Repetir</span>
+            <select name="intervaloSemanas" defaultValue="1" className="input w-auto py-1.5" aria-label="Frequência">
+              <option value="1">toda semana</option>
+              <option value="2">a cada 2 semanas</option>
+            </select>
+            <span className="text-suave">
+              {data ? `às ${diaSemana(data)}` : ""}{hora ? `, ${hora}` : ""}, com o mesmo profissional.
+            </span>
+            <p className="w-full text-xs text-suave">As próximas semanas já entram na agenda. Datas em que o profissional estiver ocupado são puladas.</p>
+          </div>
+        )}
       </div>
 
       <div className="sm:col-span-2">

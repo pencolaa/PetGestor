@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import type { StatusAgendamento } from "@prisma/client";
-import { CalendarClock, MessageCircle } from "lucide-react";
+import { CalendarClock, MessageCircle, Repeat } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { StatusPill } from "@/components/ui";
 import { atende, formatarMoeda, formatarTelefone, ROTULO_STATUS } from "@/lib/formato";
 import { Mensagem } from "@/components/Mensagem";
-import { alterarStatus, horariosLivres, linkAvisoAgendamento, remarcarAgendamento } from "./actions";
+import { alterarStatus, encerrarHorarioFixo, horariosLivres, linkAvisoAgendamento, remarcarAgendamento } from "./actions";
 
 export type AgendamentoBloco = {
   id: string;
@@ -29,6 +29,7 @@ export type AgendamentoBloco = {
   dia: string;
   duracaoMin: number;
   tipoServico: string;
+  horarioFixo: { id: string; descricao: string } | null;
 };
 
 export type ProfissionalAgenda = { id: string; nome: string; tipos: string[] };
@@ -58,13 +59,13 @@ export function BlocoAgendamento({ ag, profissionais, hoje, compacto = false }: 
       gatilho={
         compacto ? (
           <>
-            <p className="font-semibold">{ag.inicio} {emoji(ag.especie)} {ag.pet}</p>
+            <p className="font-semibold">{ag.inicio} {emoji(ag.especie)} {ag.pet}{ag.horarioFixo && <Repeat size={11} className="ml-1 inline text-primary" aria-label="Horário fixo" />}</p>
             <p className="truncate text-suave">{ag.servico} · {ag.profissional}</p>
           </>
         ) : (
           <>
             <p className="flex items-center justify-between gap-1">
-              <span className="truncate font-semibold">{emoji(ag.especie)} {ag.pet}</span>
+              <span className="truncate font-semibold">{emoji(ag.especie)} {ag.pet}{ag.horarioFixo && <Repeat size={11} className="ml-1 inline text-primary" aria-label="Horário fixo" />}</span>
               <span className="shrink-0 text-suave">{ag.inicio}</span>
             </p>
             <p className="truncate text-suave">{ag.servico}</p>
@@ -88,7 +89,7 @@ export function LinhaAgendamento({ ag, profissionais, hoje }: PropsAg) {
         <>
           <span className="font-semibold tabular-nums">{ag.inicio}<span className="block text-xs font-normal text-suave">até {ag.fim}</span></span>
           <span className="min-w-0">
-            <span className="block truncate font-semibold">{emoji(ag.especie)} {ag.pet}</span>
+            <span className="block truncate font-semibold">{emoji(ag.especie)} {ag.pet}{ag.horarioFixo && <Repeat size={12} className="ml-1 inline text-primary" aria-label="Horário fixo" />}</span>
             <span className="block truncate text-xs text-suave">{ag.tutor}</span>
           </span>
           <span className="col-start-2 truncate text-suave sm:col-start-auto">{ag.servico}</span>
@@ -130,7 +131,18 @@ function Detalhes({ ag, profissionais, hoje }: PropsAg) {
     ["Profissional", ag.profissional],
     ["Tutor", `${ag.tutor} · ${formatarTelefone(ag.telefone)}`],
     ["Valor", ag.pacote ? "Pacote de banhos" : formatarMoeda(ag.valor)],
+    ...(ag.horarioFixo ? ([["Horário fixo", ag.horarioFixo.descricao]] as [string, React.ReactNode][]) : []),
   ];
+
+  function encerrarFixo() {
+    if (!ag.horarioFixo) return;
+    if (!confirm(`Encerrar o horário fixo de ${ag.pet} (${ag.horarioFixo.descricao})? As datas futuras serão canceladas.`)) return;
+    setErro("");
+    iniciar(async () => {
+      const r = await encerrarHorarioFixo(ag.horarioFixo!.id);
+      if (!r?.ok) setErro(r?.mensagem ?? "Não foi possível encerrar.");
+    });
+  }
 
   return (
     <div className="space-y-5">
@@ -174,6 +186,9 @@ function Detalhes({ ag, profissionais, hoje }: PropsAg) {
         )}
         <button onClick={() => avisar("confirmacao")} className="btn-whatsapp"><MessageCircle size={14} /> Confirmar</button>
         <button onClick={() => avisar("pronto")} className="btn-whatsapp"><MessageCircle size={14} /> Avisar pronto</button>
+        {ag.horarioFixo && (
+          <button onClick={encerrarFixo} disabled={pendente} className="btn-ghost px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"><Repeat size={14} /> Encerrar horário fixo</button>
+        )}
         {ag.status === "CANCELADO" ? (
           <button onClick={() => mudar("AGUARDANDO")} disabled={pendente} className="btn-ghost ml-auto px-3 py-1.5 text-xs">Reativar</button>
         ) : (

@@ -4,6 +4,8 @@ import { ArrowLeft, CalendarPlus, MessageCircle, Pencil, Plus, RefreshCw, Trash2
 import { prisma } from "@/lib/prisma";
 import { exigirSessao } from "@/lib/auth";
 import { BotaoExcluir } from "@/components/BotaoExcluir";
+import { BotaoEncerrarFixo } from "@/app/(app)/agenda/BotaoEncerrarFixo";
+import { descreverHorarioFixo } from "@/lib/horariosFixos";
 import { diaISO, formatarData, hojeISO, horaLocal, idade } from "@/lib/datas";
 import { formatarMoeda, formatarTelefone, ROTULO_ESPECIE, ROTULO_SEXO } from "@/lib/formato";
 import { ROTULO_SITUACAO, situacaoVacina } from "@/lib/vacinas";
@@ -25,6 +27,7 @@ export default async function PetPage({ params }: { params: Promise<{ id: string
         vacinas: { orderBy: { aplicadaEm: "desc" } },
         pacotes: { orderBy: { criadoEm: "desc" }, include: { servico: true } },
         agendamentos: { orderBy: { inicio: "desc" }, take: 30, include: { servico: true, profissional: true } },
+        horariosFixos: { where: { ativo: true }, orderBy: { criadoEm: "asc" }, include: { servico: true, profissional: true } },
       },
     }),
     prisma.servico.findMany({ where: { ativo: true, tipo: { in: ["BANHO", "TOSA"] } }, orderBy: { nome: "asc" } }),
@@ -114,6 +117,25 @@ export default async function PetPage({ params }: { params: Promise<{ id: string
               </div>
             ) : (
               <Vazio>Nenhum pacote contratado.</Vazio>
+            )}
+          </section>
+
+          <section className="card">
+            <CardTitulo titulo="Horários fixos" />
+            {pet.horariosFixos.length === 0 ? (
+              <Vazio>Nenhum horário fixo. Para criar, marque &quot;Horário fixo&quot; ao agendar.</Vazio>
+            ) : (
+              <ul className="divide-y divide-borda">
+                {pet.horariosFixos.map((h) => (
+                  <li key={h.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+                    <span>
+                      <span className="block font-medium">{descreverHorarioFixo(h)}</span>
+                      <span className="text-xs text-suave">{h.servico.nome} · {h.profissional.nome}</span>
+                    </span>
+                    <BotaoEncerrarFixo id={h.id} descricao={`${pet.nome} (${descreverHorarioFixo(h)})`} />
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
 

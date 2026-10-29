@@ -6,6 +6,7 @@ import { diaISO, diaDaSemana, fimDoDia, formatarData, hojeISO, horaLocal, inicio
 import { rotuloEspecialidades } from "@/lib/formato";
 import { Cabecalho, Vazio } from "@/components/ui";
 import { exigirSessao } from "@/lib/auth";
+import { descreverHorarioFixo, gerarHorariosFixos } from "@/lib/horariosFixos";
 import { BlocoAgendamento, LinhaAgendamento, type AgendamentoBloco, type ProfissionalAgenda } from "./BlocoAgendamento";
 import { NovoAgendamento } from "./NovoAgendamento";
 import { obterPet } from "./actions";
@@ -34,13 +35,15 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const inicio = visao === "semana" ? inicioDaSemana(dia) : dia;
   const qtdDias = visao === "semana" ? 7 : visao === "lista" ? DIAS_LISTA : 1;
   const dias = Array.from({ length: qtdDias }, (_, i) => somarDias(inicio, i));
+  // Mantém os clientes fixos marcados nas próximas semanas (só faz algo quando falta marcar)
+  await gerarHorariosFixos();
 
   const [profissionais, servicos, agendamentos, petInicial] = await Promise.all([
     prisma.profissional.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
     prisma.servico.findMany({ where: { ativo: true }, orderBy: [{ tipo: "asc" }, { nome: "asc" }] }),
     prisma.agendamento.findMany({
       where: { ...(visao === "semana" ? {} : OCUPA_AGENDA), inicio: { gte: inicioDoDia(dias[0]), lt: fimDoDia(dias[dias.length - 1]) } },
-      include: { pet: { include: { tutor: true } }, servico: true, profissional: true },
+      include: { pet: { include: { tutor: true } }, servico: true, profissional: true, horarioFixo: true },
       orderBy: { inicio: "asc" },
     }),
     sp.pet ? obterPet(sp.pet) : null,
@@ -71,6 +74,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       observacoes: a.observacoes,
       duracaoMin: a.servico.duracaoMin,
       tipoServico: a.servico.tipo,
+      horarioFixo: a.horarioFixo?.ativo ? { id: a.horarioFixo.id, descricao: descreverHorarioFixo(a.horarioFixo) } : null,
     };
   });
 
