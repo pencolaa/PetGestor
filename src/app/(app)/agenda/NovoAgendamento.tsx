@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, MessageCircle, Search, X } from "lucide-react";
+import { CalendarPlus, MessageCircle, Search, UserPlus, X } from "lucide-react";
 import type { TipoServico } from "@prisma/client";
 import { Modal } from "@/components/Modal";
 import { Mensagem } from "@/components/Mensagem";
@@ -40,6 +40,8 @@ export function NovoAgendamento({ abertoInicial, ...props }: Props) {
 function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: Omit<Props, "abertoInicial">) {
   const [estado, acao, enviando] = useActionState(criarAgendamento, null);
   const [pet, setPet] = useState<PetBusca | null>(petInicial);
+  // Cliente que ainda não tem cadastro: tutor e pet são criados junto com o agendamento
+  const [novo, setNovo] = useState(false);
   const [busca, setBusca] = useState("");
   const [resultados, setResultados] = useState<PetBusca[]>([]);
   const [servicoId, setServicoId] = useState(servicos[0]?.id ?? "");
@@ -102,8 +104,49 @@ function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: O
   return (
     <form action={acao} className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2">
-        <label className="label">Pet / tutor *</label>
-        {pet ? (
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="label mb-0">{novo ? "Cliente novo *" : "Pet / tutor *"}</label>
+          {!pet && (
+            <button type="button" onClick={() => setNovo((n) => !n)} className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+              {novo ? <><Search size={13} /> Buscar cliente cadastrado</> : <><UserPlus size={13} /> Cliente novo</>}
+            </button>
+          )}
+        </div>
+        {novo && !pet ? (
+          <div className="grid gap-3 rounded-lg border border-primary/40 bg-primary-soft p-3 sm:grid-cols-2">
+            <input type="hidden" name="novoCliente" value="1" />
+            <div>
+              <label className="label" htmlFor="nc-tutor">Nome do tutor *</label>
+              <input id="nc-tutor" name="tutorNome" className="input" required maxLength={120} autoFocus />
+            </div>
+            <div>
+              <label className="label" htmlFor="nc-telefone">Telefone (WhatsApp) *</label>
+              <input id="nc-telefone" name="tutorTelefone" className="input" required inputMode="tel" placeholder="(11) 91234-5678" maxLength={20} />
+            </div>
+            <div>
+              <label className="label" htmlFor="nc-pet">Nome do pet *</label>
+              <input id="nc-pet" name="petNome" className="input" required maxLength={60} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label" htmlFor="nc-especie">Espécie</label>
+                <select id="nc-especie" name="petEspecie" className="input" defaultValue="CAO">
+                  <option value="CAO">Cão</option>
+                  <option value="GATO">Gato</option>
+                  <option value="OUTRO">Outro</option>
+                </select>
+              </div>
+              <div>
+                <label className="label" htmlFor="nc-sexo">Sexo</label>
+                <select id="nc-sexo" name="petSexo" className="input" defaultValue="MACHO">
+                  <option value="MACHO">Macho</option>
+                  <option value="FEMEA">Fêmea</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-suave sm:col-span-2">O cadastro do tutor e do pet é criado junto com o agendamento. Os outros dados podem ser completados depois em Clientes e pets.</p>
+          </div>
+        ) : pet ? (
           <div className="flex items-center justify-between rounded-lg border border-primary bg-primary-soft px-3 py-2">
             <div>
               <p className="font-semibold">{pet.especie === "GATO" ? "🐱" : "🐶"} {pet.nome} <span className="font-normal text-suave">· {pet.raca ?? "SRD"}</span></p>
@@ -127,7 +170,12 @@ function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: O
                 ))}
               </ul>
             )}
-            {busca.trim().length >= 2 && resultados.length === 0 && <p className="mt-1 text-xs text-suave">Nenhum pet encontrado. Cadastre em Clientes e pets.</p>}
+            {busca.trim().length >= 2 && resultados.length === 0 && (
+              <p className="mt-1 text-xs text-suave">
+                Nenhum pet encontrado.{" "}
+                <button type="button" onClick={() => setNovo(true)} className="font-semibold text-primary hover:underline">Cadastrar cliente novo</button>
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -209,7 +257,7 @@ function Formulario({ servicos, profissionais, diaInicial, hoje, petInicial }: O
       </div>
 
       <div className="flex items-center gap-3 sm:col-span-2">
-        <button className="btn-primary" disabled={enviando || !pet || !hora}>{enviando ? "Salvando..." : "Agendar"}</button>
+        <button className="btn-primary" disabled={enviando || (!pet && !novo) || !hora}>{enviando ? "Salvando..." : "Agendar"}</button>
         <Mensagem r={estado} />
       </div>
     </form>

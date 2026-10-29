@@ -1,6 +1,6 @@
 "use server";
 
-import type { StatusAgendamento } from "@prisma/client";
+import type { Especie, Prisma, Sexo, StatusAgendamento } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { exigirSessao } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -66,9 +66,39 @@ export async function horariosLivres(profissionalId: string, dia: string, duraca
 
 export type ResultadoAgendamento = (Resultado & { whatsapp?: string }) | null;
 
+type NovoCliente = { tutorNome: string; telefone: string; petNome: string; especie: Especie; sexo: Sexo };
+
+/** Lê e valida o "cliente novo" do formulário de agendamento */
+function lerNovoCliente(form: FormData): NovoCliente | string {
+  const tutorNome = texto(form, "tutorNome", 120);
+  const telefone = apenasDigitos(texto(form, "tutorTelefone", 20));
+  const petNome = texto(form, "petNome", 60);
+  const especie = texto(form, "petEspecie", 10) as Especie;
+  const sexo = texto(form, "petSexo", 10) as Sexo;
+  if (!tutorNome) return "Informe o nome do tutor.";
+  if (telefone.length < 10 || telefone.length > 13) return "Telefone inválido (inclua o DDD).";
+  if (!petNome) return "Informe o nome do pet.";
+  if (!["CAO", "GATO", "OUTRO"].includes(especie)) return "Espécie inválida.";
+  if (!["MACHO", "FEMEA"].includes(sexo)) return "Sexo inválido.";
+  return { tutorNome, telefone, petNome, especie, sexo };
+}
+
+/** Usa o tutor com o mesmo telefone (e o pet com o mesmo nome) se já existirem; senão cria */
+async function obterOuCriarPet(tx: Prisma.TransactionClient, c: NovoCliente): Promise<string> {
+  const tutor =
+    (await tx.tutor.findFirst({ where: { telefone: c.telefone }, orderBy: { criadoEm: "asc" } })) ??
+    (await tx.tutor.create({ data: { nome: c.tutorNome, telefone: c.telefone } }));
+  const pet =
+    (await tx.pet.findFirst({ where: { tutorId: tutor.id, nome: { equals: c.petNome, mode: "insensitive" } } })) ??
+    (await tx.pet.create({ data: { nome: c.petNome, especie: c.especie, sexo: c.sexo, tutorId: tutor.id } }));
+  return pet.id;
+}
+
 export async function criarAgendamento(_: ResultadoAgendamento, form: FormData): Promise<ResultadoAgendamento> {
   await exigirSessao();
-  const petId = texto(form, "petId", 40);
+  let petId = texto(form, "petId", 40);
+  const novoCliente = !petId && form.get("novoCliente") === "1" ? lerNovoCliente(form) : null;
+  if (typeof novoCliente === "string") return { ok: false, mensagem: novoCliente };
   const servicoId = texto(form, "servicoId", 40);
   const profissionalId = texto(form, "profissionalId", 40);
   const dia = texto(form, "data", 10);
@@ -76,7 +106,7 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
   const usarPacote = form.get("usarPacote") === "on";
   const confirmarWhatsapp = form.get("confirmarWhatsapp") === "on";
 
-  if (!petId) return { ok: false, mensagem: "Selecione o pet." };
+  if (!petId && !novoCliente) return { ok: false, mensagem: "Selecione o pet ou cadastre um cliente novo." };
   if (!servicoId || !profissionalId) return { ok: false, mensagem: "Selecione o serviço e o profissional." };
   if (!dia || !hora) return { ok: false, mensagem: "Escolha a data e o horário." };
   // Só datas reais e horários da grade (blocos de 30 min dentro do expediente)
@@ -84,11 +114,11 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
   if (!dataValida(dia) || !expediente.horarios.includes(hora)) return { ok: false, mensagem: "Data ou horário inválido." };
 
   const [pet, servico, profissional] = await Promise.all([
-    prisma.pet.findUnique({ where: { id: petId }, include: { tutor: true } }),
+    novoCliente ? null : prisma.pet.findUnique({ where: { id: petId }, include: { tutor: true } }),
     prisma.servico.findUnique({ where: { id: servicoId } }),
     prisma.profissional.findUnique({ where: { id: profissionalId } }),
   ]);
-  if (!pet || !servico?.ativo || !profissional?.ativo) return { ok: false, mensagem: "Pet, serviço ou profissional inválido." };
+  if ((!pet && !novoCliente) || !servico?.ativo || !profissional?.ativo) return { ok: false, mensagem: "Pet, serviço ou profissional inválido." };
   if (!atende(profissional.tipos, servico.tipo)) {
     return { ok: false, mensagem: `${profissional.nome} não realiza esse tipo de serviço.` };
   }
@@ -101,7 +131,7 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
   if (valorInformado < 0 || valorInformado > 10_000_000) return { ok: false, mensagem: "Valor estimado inválido." };
 
   let pacoteId: string | null = null;
-  if (usarPacote) {
+  if (usarPacote && !novoCliente) {
     const pacote = await prisma.pacote.findFirst({
       where: { petId, servicoId, validade: { gte: inicio } },
       orderBy: { validade: "asc" },
@@ -119,6 +149,8 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
         include: { pet: true },
       });
       if (conflito) throw new Error(`CONFLITO:${horaLocal(conflito.inicio)}–${horaLocal(conflito.fim)} (${conflito.pet.nome})`);
+      // Cliente novo: cria tutor e pet na mesma transação (se o horário der conflito, nada fica criado)
+      if (novoCliente) petId = await obterOuCriarPet(tx, novoCliente);
       if (pacoteId) {
         // Só consome se ainda houver banho disponível (evita usar o último banho duas vezes ao mesmo tempo)
         const pacote = await tx.pacote.findUniqueOrThrow({ where: { id: pacoteId } });
@@ -147,20 +179,24 @@ export async function criarAgendamento(_: ResultadoAgendamento, form: FormData):
 
   revalidatePath("/agenda");
   revalidatePath("/");
+  if (novoCliente) revalidatePath("/clientes");
 
+  const tutorNome = pet?.tutor.nome ?? novoCliente!.tutorNome;
+  const tutorTelefone = pet?.tutor.telefone ?? novoCliente!.telefone;
+  const petNome = pet?.nome ?? novoCliente!.petNome;
   let whatsapp: string | undefined;
   if (confirmarWhatsapp) {
     const config = await obterConfiguracao();
     const envio = await provedorWhatsApp().enviar(
-      pet.tutor.telefone,
+      tutorTelefone,
       mensagens.confirmacaoAgendamento({
-        tutor: pet.tutor.nome, pet: pet.nome, servico: servico.nome,
+        tutor: tutorNome, pet: petNome, servico: servico.nome,
         data: formatarData(dia, { day: "2-digit", month: "2-digit" }), hora, petShop: config.nomePetShop,
       }),
     );
     if (envio.modo === "link") whatsapp = envio.url;
   }
-  return { ok: true, mensagem: "Agendamento criado.", whatsapp };
+  return { ok: true, mensagem: novoCliente ? "Agendamento criado e cliente cadastrado." : "Agendamento criado.", whatsapp };
 }
 
 export async function remarcarAgendamento(_: Resultado, form: FormData): Promise<Resultado> {
