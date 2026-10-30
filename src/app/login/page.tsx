@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { FormLogin } from "./FormLogin";
 import { PawPrint } from "lucide-react";
@@ -20,6 +21,9 @@ export default async function LoginPage() {
           <p className="text-sm text-suave">Entre para acessar o sistema</p>
         </div>
         <FormLogin />
+        <p className="mt-6 text-center text-xs text-suave">
+          <Link href="/privacidade" className="hover:underline">Política de privacidade</Link>
+        </p>
       </div>
     </main>
   );
